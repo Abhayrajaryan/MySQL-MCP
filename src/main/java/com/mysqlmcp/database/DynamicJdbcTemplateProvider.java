@@ -2,7 +2,9 @@ package com.mysqlmcp.database;
 
 import com.mysqlmcp.config.MysqlMcpProperties;
 import com.mysqlmcp.exception.DatabaseConnectionException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
@@ -11,15 +13,11 @@ import java.sql.DriverManager;
 import java.util.Properties;
 
 @Component
+@RequiredArgsConstructor
 public class DynamicJdbcTemplateProvider {
 
     private final JdbcUrlBuilder jdbcUrlBuilder;
     private final MysqlMcpProperties properties;
-
-    public DynamicJdbcTemplateProvider(JdbcUrlBuilder jdbcUrlBuilder, MysqlMcpProperties properties) {
-        this.jdbcUrlBuilder = jdbcUrlBuilder;
-        this.properties = properties;
-    }
 
     public JdbcTemplate createJdbcTemplate(String host, Integer port, String databaseName,
                                            String username, String password) {
@@ -50,6 +48,6 @@ public class DynamicJdbcTemplateProvider {
     }
 
     private DataSource createDataSource(String url, String username, String password) {
-        return new org.springframework.jdbc.datasource.DriverManagerDataSource(url, username, password);
+        return new DriverManagerDataSource(url, username, password);
     }
 }

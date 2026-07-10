@@ -9,6 +9,7 @@ import com.mysqlmcp.exception.InvalidApiKeyException;
 import com.mysqlmcp.exception.PermissionDeniedException;
 import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -20,16 +21,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class ApiKeyValidationService {
 
     private final ApiKeyRepository apiKeyRepository;
     private final ApiKeyPermissionRepository permissionRepository;
-
-    public ApiKeyValidationService(ApiKeyRepository apiKeyRepository,
-                                   ApiKeyPermissionRepository permissionRepository) {
-        this.apiKeyRepository = apiKeyRepository;
-        this.permissionRepository = permissionRepository;
-    }
 
     public DatabaseAccessContext validateAndResolve(String rawApiKey) {
         if (rawApiKey == null || rawApiKey.isBlank()) {

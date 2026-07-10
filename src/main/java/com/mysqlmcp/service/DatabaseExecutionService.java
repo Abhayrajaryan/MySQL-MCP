@@ -3,25 +3,20 @@ package com.mysqlmcp.service;
 import com.mysqlmcp.config.MysqlMcpProperties;
 import com.mysqlmcp.database.DynamicJdbcTemplateProvider;
 import com.mysqlmcp.dto.DatabaseCredentials;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 @Service
+@RequiredArgsConstructor
 public class DatabaseExecutionService {
 
     private final DynamicJdbcTemplateProvider jdbcTemplateProvider;
     private final MysqlMcpProperties properties;
-
-    public DatabaseExecutionService(DynamicJdbcTemplateProvider jdbcTemplateProvider,
-                                    MysqlMcpProperties properties) {
-        this.jdbcTemplateProvider = jdbcTemplateProvider;
-        this.properties = properties;
-    }
 
     public ShowTablesResult showTables(DatabaseCredentials credentials) {
         JdbcTemplate jdbcTemplate = createTemplate(credentials);

@@ -5,18 +5,16 @@ import com.mysqlmcp.entity.AuditLog;
 import com.mysqlmcp.entity.DatabaseConnection;
 import com.mysqlmcp.enums.AuditSourceType;
 import com.mysqlmcp.repository.AuditLogRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class AuditLogService {
 
     private final AuditLogRepository auditLogRepository;
-
-    public AuditLogService(AuditLogRepository auditLogRepository) {
-        this.auditLogRepository = auditLogRepository;
-    }
 
     public AuditLog record(AuditLogEntry entry) {
         AuditLog log = new AuditLog();

@@ -39,7 +39,7 @@ public class TestController {
     }
 
     @Data
-    private class TestRequest{
+    public static class TestRequest{
         private String host;
         private Integer port;
         private String databaseName;

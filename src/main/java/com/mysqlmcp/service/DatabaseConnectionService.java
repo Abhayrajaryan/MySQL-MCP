@@ -168,6 +168,12 @@ public class DatabaseConnectionService {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "DatabaseConnection not found with id: " + id));
 
+        String apiKeyPrefix = apiKeyRepo.findAll().stream()
+                .filter(k -> k.getDatabaseConnection().getId().equals(conn.getId()))
+                .findFirst()
+                .map(ApiKey::getKeyPrefix)
+                .orElse(null);
+
         return ConnectionDetailResponse.builder()
                 .id(conn.getId())
                 .name(conn.getName())
@@ -175,6 +181,7 @@ public class DatabaseConnectionService {
                 .port(conn.getPort())
                 .databaseName(conn.getDatabaseName())
                 .isActive(conn.getIsActive())
+                .apiKeyPrefix(apiKeyPrefix)
                 .createdAt(conn.getCreatedAt())
                 .updatedAt(conn.getUpdatedAt())
                 .build();

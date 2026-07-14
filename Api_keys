@@ -1,0 +1,13 @@
+{
+    "data": {
+        "connectionId": 1,
+        "connectionName": "My-ASSISTANT-DB",
+        "databaseName": "my_assistant",
+        "host": "localhost",
+        "port": 3306,
+        "apiKey": "mcp_live_l5PGsJc8iBYJvI/Y++9+cOKzm226x/p44otn8DDHdSg",
+        "created": true
+    },
+    "timestamp": "2026-07-14T18:51:08.5977456",
+    "message": "Database connection created"
+}

@@ -24,12 +24,6 @@ public class McpExecutionService {
     private final ApiKeyPermissionRepository apiKeyPermissionRepo;
     private final DynamicJdbcTemplateProvider jdbcTemplateProvider;
 
-    /**
-     * Executes a query on behalf of an API key.
-     * <p>
-     * Flow: API key → hash → find key → check permission → resolve DB config →
-     *       dynamic JdbcTemplate → execute query → return results
-     */
     @Transactional
     public Object execute(String rawApiKey, String query) {
         // 1. Hash the provided API key and find matching record
@@ -88,9 +82,7 @@ public class McpExecutionService {
         }
     }
 
-    /**
-     * Determines which DatabasePermission is required for a given query.
-     */
+
     private DatabasePermission determinePermission(String query) {
         if (query == null || query.isBlank()) {
             return null;

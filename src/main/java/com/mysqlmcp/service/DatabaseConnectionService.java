@@ -35,15 +35,6 @@ public class DatabaseConnectionService {
     private final UserRepository userRepo;
     private final DatabaseCredentialEncryptor encryptor;
 
-    /**
-     * Creates or updates a database connection.
-     * <p>
-     * If {@code request.id} is null, a new connection is created along with a
-     * new API key. The full raw API key is returned only once in the response.
-     * <p>
-     * If {@code request.id} is present, the existing connection is updated.
-     * Only the key prefix is returned (no new key generated).
-     */
     @Transactional
     public UpsertConnectionResponse upsert(UpsertDatabaseConnectionRequest request) {
         boolean isCreate = (request.getId() == null);
@@ -135,10 +126,6 @@ public class DatabaseConnectionService {
         }
     }
 
-    /**
-     * Returns a lightweight list of all connections with their API key prefix,
-     * database name, host, and port.
-     */
     public List<ConnectionListItem> getAll() {
         List<DatabaseConnection> connections = dbConnectionRepo.findAll();
 
@@ -159,10 +146,6 @@ public class DatabaseConnectionService {
         }).toList();
     }
 
-    /**
-     * Returns detailed info about a single connection.
-     * Does NOT expose dbUsername or encryptedPassword.
-     */
     public ConnectionDetailResponse findById(Long id) {
         DatabaseConnection conn = dbConnectionRepo.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(

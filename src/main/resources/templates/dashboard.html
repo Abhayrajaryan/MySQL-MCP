@@ -59,16 +59,45 @@
         .detail-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
         .detail-row .label { color: #888; }
         .detail-row .value { color: #333; font-weight: 500; }
-        .key-prefix {
-            background: #f0f0f0;
+        .api-keys-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee; }
+        .api-keys-title { font-size: 12px; color: #888; margin-bottom: 8px; font-weight: 600; }
+        .api-key-item {
+            background: #f8f9fa;
             padding: 8px 12px;
             border-radius: 6px;
+            margin-bottom: 6px;
             font-family: 'Courier New', monospace;
             font-size: 12px;
-            word-break: break-all;
-            margin-bottom: 12px;
+            position: relative;
+            cursor: pointer;
         }
-        .btn-group { display: flex; gap: 8px; }
+        .api-key-prefix { word-break: break-all; color: #333; }
+        .api-key-tooltip {
+            display: none;
+            position: absolute;
+            left: 100%;
+            top: 0;
+            margin-left: 8px;
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            white-space: nowrap;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .api-key-item:hover .api-key-tooltip { display: block; }
+        .permission-tag {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin: 2px;
+            font-size: 10px;
+        }
+        .btn-group { display: flex; gap: 8px; margin-top: 12px; }
         .btn-secondary {
             padding: 6px 14px;
             background: #6c757d;
@@ -202,7 +231,7 @@
                 </div>
                 <div class="form-group">
                     <label for="connPassword">Database Password</label>
-                    <input type="password" id="connPassword" placeholder="••••••••">
+                    <input type="password" id="connPassword" required placeholder="••••••••">
                 </div>
                 <button type="submit" class="btn-submit">Save Connection</button>
             </form>
@@ -261,8 +290,15 @@
                     content.innerHTML = '<div class="empty-state"><p>No database connections configured yet.</p></div>';
                     return;
                 }
+
+                // Fetch API keys and permissions for all connections
+                const connectionsWithKeys = await Promise.all(connections.map(async (conn) => {
+                    const keys = await fetchApiKeys(conn.connectionId, token);
+                    return { ...conn, apiKeys: keys };
+                }));
+
                 let html = '<div class="cards-grid">';
-                for (const conn of connections) {
+                for (const conn of connectionsWithKeys) {
                     const statusClass = conn.active ? 'active' : 'inactive';
                     const statusText = conn.active ? 'Active' : 'Inactive';
                     html += '<div class="card">';
@@ -272,8 +308,23 @@
                     html += '<div class="detail-row"><span class="label">Host</span><span class="value">' + escapeHtml(conn.host) + ':' + conn.port + '</span></div>';
                     html += '<div class="detail-row"><span class="label">Database</span><span class="value">' + escapeHtml(conn.databaseName) + '</span></div>';
                     html += '</div>';
-                    if (conn.apiKeyPrefix) {
-                        html += '<div class="key-prefix">' + escapeHtml(conn.apiKeyPrefix) + '</div>';
+                    if (conn.apiKeys && conn.apiKeys.length > 0) {
+                        html += '<div class="api-keys-section">';
+                        html += '<div class="api-keys-title">API Keys (' + conn.apiKeys.length + ')</div>';
+                        for (const key of conn.apiKeys) {
+                            html += '<div class="api-key-item">';
+                            html += '<div class="api-key-prefix">' + escapeHtml(key.keyPrefix) + '</div>';
+                            html += '<div class="api-key-tooltip">';
+                            html += '<div style="font-weight:600; margin-bottom:4px;">' + escapeHtml(key.name) + '</div>';
+                            if (key.permissions && key.permissions.length > 0) {
+                                html += '<div>' + key.permissions.map(p => '<span class="permission-tag">' + escapeHtml(p) + '</span>').join(' ') + '</div>';
+                            } else {
+                                html += '<div style="color:#aaa;">No permissions</div>';
+                            }
+                            html += '</div>';
+                            html += '</div>';
+                        }
+                        html += '</div>';
                     }
                     html += '<div class="btn-group">';
                     html += '<button class="btn-secondary" onclick="editConnection(' + conn.connectionId + ')">Edit</button>';
@@ -287,10 +338,22 @@
             }
         }
 
+        async function fetchApiKeys(connectionId, token) {
+            try {
+                const res = await fetch('/api-keys/connections/' + connectionId, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) return [];
+                const json = await res.json();
+                return json.data || [];
+            } catch (e) {
+                return [];
+            }
+        }
+
         function showConnectionForm() {
             document.getElementById('connectionForm').reset();
             document.getElementById('connId').value = '';
-            document.getElementById('connPassword').required = true;
             document.getElementById('connectionModalTitle').textContent = 'New Database Connection';
             document.getElementById('connectionModal').classList.add('active');
         }
@@ -310,7 +373,6 @@
             document.getElementById('connDatabase').value = conn.databaseName || '';
             document.getElementById('connUsername').value = conn.dbUsername || '';
             document.getElementById('connPassword').value = '';
-            document.getElementById('connPassword').required = false;
             document.getElementById('connectionModalTitle').textContent = 'Edit Database Connection';
             document.getElementById('connectionModal').classList.add('active');
         }
@@ -319,21 +381,18 @@
             event.preventDefault();
             const token = getToken();
             const id = document.getElementById('connId').value;
-            const password = document.getElementById('connPassword').value;
             const payload = {
+                id: id ? parseInt(id) : null,
                 name: document.getElementById('connName').value,
                 host: document.getElementById('connHost').value,
                 port: parseInt(document.getElementById('connPort').value),
                 databaseName: document.getElementById('connDatabase').value,
                 dbUsername: document.getElementById('connUsername').value,
-                ...(password ? { password } : {}),
-                showTables: true, describeTable: true, select: true, explain: true,
-                insert: false, update: false, delete: false, createTable: false, alterTable: false, dropTable: false
+                password: document.getElementById('connPassword').value
             };
-            const url = id ? '/database-connections/' + id : '/database-connections';
-            const method = id ? 'PUT' : 'POST';
+            const url = '/database-connections';
             const res = await fetch(url, {
-                method: method,
+                method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });

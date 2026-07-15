@@ -26,16 +26,21 @@ public class DatabaseConnectionController {
     public ResponseEntity<ApiResponse<UpsertConnectionResponse>> upsert(
             @RequestBody UpsertDatabaseConnectionRequest request) {
 
-        log.info("Upsert database connection: {}", request.getName());
-        UpsertConnectionResponse response = dbConnectionService.upsert(request);
-        HttpStatus status = response.isCreated() ? HttpStatus.CREATED : HttpStatus.OK;
+        try {
+            log.info("Upsert database connection: {}", request.getName());
+            UpsertConnectionResponse response = dbConnectionService.upsert(request);
+            HttpStatus status = response.isCreated() ? HttpStatus.CREATED : HttpStatus.OK;
 
-        ApiResponse<UpsertConnectionResponse> apiResponse = ApiResponse.success(
-                response,
-                response.isCreated() ? "Database connection created" : "Database connection updated"
-        );
+            ApiResponse<UpsertConnectionResponse> apiResponse = ApiResponse.success(
+                    response,
+                    response.isCreated() ? "Database connection created" : "Database connection updated"
+            );
 
-        return ResponseEntity.status(status).body(apiResponse);
+            return ResponseEntity.status(status).body(apiResponse);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @GetMapping

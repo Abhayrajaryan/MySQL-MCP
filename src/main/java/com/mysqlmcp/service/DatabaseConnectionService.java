@@ -6,9 +6,7 @@ import com.mysqlmcp.dto.response.ConnectionDetailResponse;
 import com.mysqlmcp.dto.response.ConnectionListItem;
 import com.mysqlmcp.dto.response.UpsertConnectionResponse;
 import com.mysqlmcp.entity.ApiKey;
-import com.mysqlmcp.entity.ApiKeyPermission;
 import com.mysqlmcp.entity.DatabaseConnection;
-import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;
 import com.mysqlmcp.repository.DatabaseConnectionRepository;
@@ -18,9 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -51,26 +49,12 @@ public class DatabaseConnectionService {
             DatabaseConnection saved = dbConnectionRepo.save(connection);
             log.info("Database connection created with id: {}", saved.getId());
 
-            String rawKey = generateApiKey();
-            String keyPrefix = rawKey.substring(0, Math.min(20, rawKey.length())) + "...";
-
-            ApiKey apiKey = new ApiKey();
-            apiKey.setDatabaseConnection(saved);
-            apiKey.setName("default-key-" + saved.getId());
-            apiKey.setKeyPrefix(keyPrefix);
-            apiKey.setKeyHash(hashApiKey(rawKey));
-            ApiKey savedKey = apiKeyRepo.save(apiKey);
-            log.info("Default API key generated for connection id: {}", saved.getId());
-
-            assignPermissions(savedKey, request);
-
             return UpsertConnectionResponse.builder()
                     .connectionId(saved.getId())
                     .connectionName(saved.getName())
                     .databaseName(saved.getDatabaseName())
                     .host(saved.getHost())
                     .port(saved.getPort())
-                    .apiKey(rawKey)
                     .created(true)
                     .build();
         } else {
@@ -91,30 +75,12 @@ public class DatabaseConnectionService {
             DatabaseConnection saved = dbConnectionRepo.save(existing);
             log.info("Database connection updated with id: {}", saved.getId());
 
-            apiKeyRepo.findAll().stream()
-                    .filter(k -> k.getDatabaseConnection().getId().equals(saved.getId()))
-                    .findFirst()
-                    .ifPresent(existingKey -> {
-                        List<ApiKeyPermission> oldPermissions = apiKeyPermissionRepo.findAll().stream()
-                                .filter(p -> p.getApiKey().getId().equals(existingKey.getId()))
-                                .toList();
-                        apiKeyPermissionRepo.deleteAll(oldPermissions);
-                        assignPermissions(existingKey, request);
-                    });
-
-            String keyPrefix = apiKeyRepo.findAll().stream()
-                    .filter(k -> k.getDatabaseConnection().getId().equals(saved.getId()))
-                    .findFirst()
-                    .map(ApiKey::getKeyPrefix)
-                    .orElse("N/A");
-
             return UpsertConnectionResponse.builder()
                     .connectionId(saved.getId())
                     .connectionName(saved.getName())
                     .databaseName(saved.getDatabaseName())
                     .host(saved.getHost())
                     .port(saved.getPort())
-                    .apiKey(keyPrefix)
                     .created(false)
                     .build();
         }
@@ -124,18 +90,13 @@ public class DatabaseConnectionService {
         List<DatabaseConnection> connections = dbConnectionRepo.findAll();
 
         return connections.stream().map(conn -> {
-            ApiKey apiKey = apiKeyRepo.findAll().stream()
+            List<ApiKey> apiKeys = apiKeyRepo.findAll().stream()
                     .filter(k -> k.getDatabaseConnection().getId().equals(conn.getId()))
-                    .findFirst()
-                    .orElse(null);
+                    .toList();
 
-            List<String> permissions = new ArrayList<>();
-            if (apiKey != null) {
-                permissions = apiKeyPermissionRepo.findAll().stream()
-                        .filter(p -> p.getApiKey().getId().equals(apiKey.getId()))
-                        .map(p -> p.getPermission().name())
-                        .toList();
-            }
+            List<String> keyPrefixes = apiKeys.stream()
+                    .map(ApiKey::getKeyPrefix)
+                    .toList();
 
             return ConnectionListItem.builder()
                     .connectionId(conn.getId())
@@ -143,9 +104,9 @@ public class DatabaseConnectionService {
                     .host(conn.getHost())
                     .port(conn.getPort())
                     .databaseName(conn.getDatabaseName())
-                    .apiKeyPrefix(apiKey != null ? apiKey.getKeyPrefix() : null)
+                    .apiKeyPrefix(keyPrefixes.isEmpty() ? null : keyPrefixes.get(0))
                     .active(conn.getIsActive())
-                    .permissions(permissions)
+                    .permissions(List.of())
                     .build();
         }).toList();
     }
@@ -175,28 +136,24 @@ public class DatabaseConnectionService {
                 .build();
     }
 
-    private void assignPermissions(ApiKey apiKey, UpsertDatabaseConnectionRequest request) {
-        List<ApiKeyPermission> permissions = new ArrayList<>();
+    public List<Map<String, Object>> getApiKeysWithPermissions(Long connectionId) {
+        List<ApiKey> apiKeys = apiKeyRepo.findAll().stream()
+                .filter(k -> k.getDatabaseConnection().getId().equals(connectionId))
+                .toList();
 
-        if (request.isShowTables())    permissions.add(buildPermission(apiKey, DatabasePermission.SHOW_TABLES));
-        if (request.isDescribeTable()) permissions.add(buildPermission(apiKey, DatabasePermission.DESCRIBE_TABLE));
-        if (request.isSelect())        permissions.add(buildPermission(apiKey, DatabasePermission.SELECT));
-        if (request.isExplain())       permissions.add(buildPermission(apiKey, DatabasePermission.EXPLAIN));
-        if (request.isInsert())        permissions.add(buildPermission(apiKey, DatabasePermission.INSERT));
-        if (request.isUpdate())        permissions.add(buildPermission(apiKey, DatabasePermission.UPDATE));
-        if (request.isDelete())        permissions.add(buildPermission(apiKey, DatabasePermission.DELETE));
-        if (request.isCreateTable())   permissions.add(buildPermission(apiKey, DatabasePermission.CREATE_TABLE));
-        if (request.isAlterTable())    permissions.add(buildPermission(apiKey, DatabasePermission.ALTER_TABLE));
-        if (request.isDropTable())     permissions.add(buildPermission(apiKey, DatabasePermission.DROP_TABLE));
+        return apiKeys.stream().map(apiKey -> {
+            List<String> permissions = apiKeyPermissionRepo.findAll().stream()
+                    .filter(p -> p.getApiKey().getId().equals(apiKey.getId()))
+                    .map(p -> p.getPermission().name())
+                    .toList();
 
-        apiKeyPermissionRepo.saveAll(permissions);
-    }
-
-    private ApiKeyPermission buildPermission(ApiKey apiKey, DatabasePermission permission) {
-        ApiKeyPermission p = new ApiKeyPermission();
-        p.setApiKey(apiKey);
-        p.setPermission(permission);
-        return p;
+            return Map.of(
+                    "id", apiKey.getId(),
+                    "name", apiKey.getName(),
+                    "keyPrefix", apiKey.getKeyPrefix(),
+                    "permissions", permissions
+            );
+        }).toList();
     }
 
     public String generateApiKeyForConnection(Long connectionId, String keyName) {
@@ -217,12 +174,6 @@ public class DatabaseConnectionService {
 
         log.info("API key generated successfully for connection id: {}", connectionId);
         return rawKey;
-    }
-
-    private String generateApiKey() {
-        byte[] randomBytes = new byte[32];
-        new SecureRandom().nextBytes(randomBytes);
-        return API_KEY_PREFIX + Base64.getEncoder().withoutPadding().encodeToString(randomBytes);
     }
 
     private String hashApiKey(String rawKey) {

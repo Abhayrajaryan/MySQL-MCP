@@ -13,6 +13,5 @@ public class UpsertConnectionResponse {
     private String databaseName;
     private String host;
     private Integer port;
-    private String apiKey;         // full raw key on create, prefix on update
     private boolean created;       // true = new, false = updated
 }

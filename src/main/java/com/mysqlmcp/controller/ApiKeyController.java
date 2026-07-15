@@ -2,7 +2,6 @@ package com.mysqlmcp.controller;
 
 import com.mysqlmcp.dto.request.CreateApiKeyRequest;
 import com.mysqlmcp.dto.response.ApiResponse;
-import com.mysqlmcp.dto.response.ConnectionListItem;
 import com.mysqlmcp.dto.response.CreateApiKeyResponse;
 import com.mysqlmcp.service.DatabaseConnectionService;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -45,18 +45,14 @@ public class ApiKeyController {
     }
 
     @GetMapping("/connections/{connectionId}")
-    public ResponseEntity<ApiResponse<List<String>>> getPermissions(
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getKeysWithPermissions(
             @PathVariable Long connectionId) {
 
-        List<String> permissions = dbConnectionService.getAll().stream()
-                .filter(c -> c.getConnectionId().equals(connectionId))
-                .findFirst()
-                .map(ConnectionListItem::getPermissions)
-                .orElse(List.of());
+        List<Map<String, Object>> keys = dbConnectionService.getApiKeysWithPermissions(connectionId);
 
-        ApiResponse<List<String>> apiResponse = ApiResponse.success(
-                permissions,
-                "Permissions retrieved"
+        ApiResponse<List<Map<String, Object>>> apiResponse = ApiResponse.success(
+                keys,
+                "API keys retrieved"
         );
 
         return ResponseEntity.ok(apiResponse);

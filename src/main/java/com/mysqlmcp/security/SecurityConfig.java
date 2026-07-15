@@ -1,6 +1,7 @@
 package com.mysqlmcp.security;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -13,6 +14,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+@Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
@@ -25,12 +27,10 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                // Public endpoints
                 .requestMatchers("/login", "/dashboard", "/auth/**", "/css/**", "/js/**").permitAll()
-                .requestMatchers("/mcp/**").permitAll()  // MCP uses API key auth, not JWT
+                .requestMatchers("/mcp/**").permitAll()
                 .anyRequest().authenticated()
             )
-            // No form login — all auth is JWT-based
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )

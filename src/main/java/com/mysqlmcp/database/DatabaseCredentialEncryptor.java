@@ -1,5 +1,6 @@
 package com.mysqlmcp.database;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +11,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.SecureRandom;
 import java.util.Base64;
 
+@Slf4j
 @Component
 public class DatabaseCredentialEncryptor {
 
@@ -28,8 +30,8 @@ public class DatabaseCredentialEncryptor {
             throw new IllegalArgumentException("Encryption key must be 32 bytes (256 bits) when decoded. Got " + decodedKey.length + " bytes.");
         }
         this.secretKey = new SecretKeySpec(decodedKey, "AES");
+        log.info("Database credential encryptor initialized");
     }
-
 
     public String encrypt(String plainText) {
         if (plainText == null || plainText.isBlank()) {
@@ -47,7 +49,6 @@ public class DatabaseCredentialEncryptor {
 
             byte[] cipherText = cipher.doFinal(plainText.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
-            // Prepend IV to ciphertext: [12 bytes IV][ciphertext]
             byte[] combined = new byte[GCM_IV_LENGTH + cipherText.length];
             System.arraycopy(iv, 0, combined, 0, GCM_IV_LENGTH);
             System.arraycopy(cipherText, 0, combined, GCM_IV_LENGTH, cipherText.length);
@@ -69,7 +70,6 @@ public class DatabaseCredentialEncryptor {
                 throw new IllegalArgumentException("Encrypted value is too short (missing IV)");
             }
 
-            // Extract IV and ciphertext
             byte[] iv = new byte[GCM_IV_LENGTH];
             System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH);
             byte[] cipherText = new byte[combined.length - GCM_IV_LENGTH];

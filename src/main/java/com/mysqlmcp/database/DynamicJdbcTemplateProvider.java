@@ -2,13 +2,14 @@ package com.mysqlmcp.database;
 
 import com.mysqlmcp.entity.DatabaseConnection;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 
-
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class DynamicJdbcTemplateProvider {
@@ -33,9 +34,6 @@ public class DynamicJdbcTemplateProvider {
                 + "/" + connection.getDatabaseName();
     }
 
-    /**
-     * Creates a DriverManagerDataSource from a JDBC URL and credentials.
-     */
     private DataSource createDataSource(String jdbcUrl, String username, String password) {
         if (jdbcUrl == null || jdbcUrl.isBlank()) {
             throw new IllegalArgumentException("JDBC URL must not be null or blank");
@@ -50,10 +48,6 @@ public class DynamicJdbcTemplateProvider {
         return dataSource;
     }
 
-    /**
-     * Builds the full JDBC URL from a DatabaseConnection, decrypts the stored
-     * password, creates a DataSource, and wraps it in a JdbcTemplate.
-     */
     public JdbcTemplate createJdbcTemplate(DatabaseConnection connection) {
         String jdbcUrl = buildJdbcUrl(connection);
         String decryptedPassword = credentialEncryptor.decrypt(connection.getEncryptedPassword());

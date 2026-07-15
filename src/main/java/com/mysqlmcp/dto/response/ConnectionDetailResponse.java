@@ -15,6 +15,7 @@ public class ConnectionDetailResponse {
     private String host;
     private Integer port;
     private String databaseName;
+    private String dbUsername;
     private Boolean isActive;
     private String apiKeyPrefix;
     private LocalDateTime createdAt;

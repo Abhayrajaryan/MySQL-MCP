@@ -1,11 +1,13 @@
 package com.mysqlmcp.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @Service
 public class TokenBlacklistService {
 
@@ -13,6 +15,7 @@ public class TokenBlacklistService {
 
     public void blacklist(String token) {
         blacklistedTokens.add(token);
+        log.info("Token blacklisted");
     }
 
     public boolean isBlacklisted(String token) {

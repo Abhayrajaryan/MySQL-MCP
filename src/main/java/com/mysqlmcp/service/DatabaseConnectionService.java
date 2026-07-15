@@ -13,6 +13,7 @@ import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;
 import com.mysqlmcp.repository.DatabaseConnectionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DatabaseConnectionService {
@@ -37,7 +39,7 @@ public class DatabaseConnectionService {
         boolean isCreate = (request.getId() == null);
 
         if (isCreate) {
-            // Create new connection
+            log.info("Creating new database connection: {}", request.getName());
             DatabaseConnection connection = new DatabaseConnection();
             connection.setName(request.getName());
             connection.setHost(request.getHost());
@@ -47,8 +49,8 @@ public class DatabaseConnectionService {
             connection.setEncryptedPassword(encryptor.encrypt(request.getPassword()));
 
             DatabaseConnection saved = dbConnectionRepo.save(connection);
+            log.info("Database connection created with id: {}", saved.getId());
 
-            // Generate a new API key for this connection
             String rawKey = generateApiKey();
             String keyPrefix = rawKey.substring(0, Math.min(20, rawKey.length())) + "...";
 
@@ -58,8 +60,8 @@ public class DatabaseConnectionService {
             apiKey.setKeyPrefix(keyPrefix);
             apiKey.setKeyHash(hashApiKey(rawKey));
             ApiKey savedKey = apiKeyRepo.save(apiKey);
+            log.info("Default API key generated for connection id: {}", saved.getId());
 
-            // Assign permissions based on request flags
             assignPermissions(savedKey, request);
 
             return UpsertConnectionResponse.builder()
@@ -68,11 +70,11 @@ public class DatabaseConnectionService {
                     .databaseName(saved.getDatabaseName())
                     .host(saved.getHost())
                     .port(saved.getPort())
-                    .apiKey(rawKey)  // full key — returned only once
+                    .apiKey(rawKey)
                     .created(true)
                     .build();
         } else {
-            // Update existing connection
+            log.info("Updating database connection with id: {}", request.getId());
             DatabaseConnection existing = dbConnectionRepo.findById(request.getId())
                     .orElseThrow(() -> new IllegalArgumentException(
                             "DatabaseConnection not found with id: " + request.getId()));
@@ -87,23 +89,19 @@ public class DatabaseConnectionService {
             }
 
             DatabaseConnection saved = dbConnectionRepo.save(existing);
+            log.info("Database connection updated with id: {}", saved.getId());
 
-            // On update, replace permissions with the request flags
             apiKeyRepo.findAll().stream()
                     .filter(k -> k.getDatabaseConnection().getId().equals(saved.getId()))
                     .findFirst()
                     .ifPresent(existingKey -> {
-                        // Remove old permissions
                         List<ApiKeyPermission> oldPermissions = apiKeyPermissionRepo.findAll().stream()
                                 .filter(p -> p.getApiKey().getId().equals(existingKey.getId()))
                                 .toList();
                         apiKeyPermissionRepo.deleteAll(oldPermissions);
-
-                        // Assign new permissions from request flags
                         assignPermissions(existingKey, request);
                     });
 
-            // Get existing key prefix (no new key generated on update)
             String keyPrefix = apiKeyRepo.findAll().stream()
                     .filter(k -> k.getDatabaseConnection().getId().equals(saved.getId()))
                     .findFirst()
@@ -169,6 +167,7 @@ public class DatabaseConnectionService {
                 .host(conn.getHost())
                 .port(conn.getPort())
                 .databaseName(conn.getDatabaseName())
+                .dbUsername(conn.getDbUsername())
                 .isActive(conn.getIsActive())
                 .apiKeyPrefix(apiKeyPrefix)
                 .createdAt(conn.getCreatedAt())
@@ -176,9 +175,6 @@ public class DatabaseConnectionService {
                 .build();
     }
 
-    /**
-     * Reads the permission flags from the request and creates ApiKeyPermission records.
-     */
     private void assignPermissions(ApiKey apiKey, UpsertDatabaseConnectionRequest request) {
         List<ApiKeyPermission> permissions = new ArrayList<>();
 
@@ -203,7 +199,25 @@ public class DatabaseConnectionService {
         return p;
     }
 
-    // --- Private helpers ---
+    public String generateApiKeyForConnection(Long connectionId, String keyName) {
+        log.info("Generating new API key for connection id: {}, name: {}", connectionId, keyName);
+        DatabaseConnection conn = dbConnectionRepo.findById(connectionId)
+                .orElseThrow(() -> new IllegalArgumentException("DatabaseConnection not found with id: " + connectionId));
+
+        byte[] randomBytes = new byte[32];
+        new SecureRandom().nextBytes(randomBytes);
+        String rawKey = API_KEY_PREFIX + Base64.getEncoder().withoutPadding().encodeToString(randomBytes);
+
+        ApiKey apiKey = new ApiKey();
+        apiKey.setDatabaseConnection(conn);
+        apiKey.setName(keyName);
+        apiKey.setKeyPrefix(rawKey.substring(0, Math.min(20, rawKey.length())) + "...");
+        apiKey.setKeyHash(hashApiKey(rawKey));
+        apiKeyRepo.save(apiKey);
+
+        log.info("API key generated successfully for connection id: {}", connectionId);
+        return rawKey;
+    }
 
     private String generateApiKey() {
         byte[] randomBytes = new byte[32];
@@ -211,10 +225,6 @@ public class DatabaseConnectionService {
         return API_KEY_PREFIX + Base64.getEncoder().withoutPadding().encodeToString(randomBytes);
     }
 
-    /**
-     * Simple SHA-256 hash for API keys.
-     * A more robust approach (bcrypt/scrypt) can replace this later.
-     */
     private String hashApiKey(String rawKey) {
         try {
             java.security.MessageDigest digest =

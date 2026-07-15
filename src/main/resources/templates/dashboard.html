@@ -28,12 +28,21 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
-            text-decoration: none;
         }
         .btn-logout:hover { background: #c0392b; }
         .container { max-width: 1200px; margin: 32px auto; padding: 0 24px; }
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .page-header h2 { font-size: 24px; color: #333; }
+        .btn-primary {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary:hover { background: #5568d3; }
         .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
         .card {
             background: white;
@@ -46,7 +55,6 @@
         .card-header h3 { font-size: 16px; color: #333; }
         .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .status-badge.active { background: #e8f5e9; color: #2e7d32; }
-        .status-badge.inactive { background: #fbe9e7; color: #c62828; }
         .card-details { margin-bottom: 16px; }
         .detail-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
         .detail-row .label { color: #888; }
@@ -58,90 +66,180 @@
             font-family: 'Courier New', monospace;
             font-size: 12px;
             word-break: break-all;
+            margin-bottom: 12px;
         }
-        .permissions-section { margin-top: 12px; }
-        .permissions-section .title { font-size: 12px; color: #888; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .permission-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-        .permission-tag { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; background: #e3f2fd; color: #1565c0; }
+        .btn-group { display: flex; gap: 8px; }
+        .btn-secondary {
+            padding: 6px 14px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-secondary:hover { background: #5a6268; }
+        .btn-success {
+            padding: 6px 14px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-success:hover { background: #218838; }
         .empty-state { text-align: center; padding: 60px 20px; color: #888; }
         .empty-state p { font-size: 16px; margin-top: 8px; }
-        .loading { text-align: center; padding: 60px 20px; color: #888; }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-header h3 { font-size: 20px; color: #333; }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #888;
+        }
+        .close-btn:hover { color: #333; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 6px; color: #555; font-size: 14px; font-weight: 500; }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #667eea; }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .checkbox-item { display: flex; align-items: center; gap: 6px; }
+        .checkbox-item input[type="checkbox"] { width: auto; }
+        .btn-submit {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+        .btn-submit:hover { background: #5568d3; }
+        .api-key-display {
+            background: #f0f0f0;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin-top: 12px;
+        }
     </style>
 </head>
 <body>
     <nav class="navbar">
         <h1>MySQL MCP Server</h1>
-        <a href="#" onclick="handleLogout()" class="btn-logout">Logout</a>
+        <button onclick="handleLogout()" class="btn-logout">Logout</button>
     </nav>
     <div class="container">
         <div class="page-header">
             <h2>Database Connections</h2>
+            <button onclick="showConnectionForm()" class="btn-primary">+ New Connection</button>
         </div>
         <div id="dashboardContent"></div>
     </div>
+
+    <!-- Connection Form Modal -->
+    <div id="connectionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="connectionModalTitle">New Database Connection</h3>
+                <button onclick="closeModal('connectionModal')" class="close-btn">&times;</button>
+            </div>
+            <form id="connectionForm" onsubmit="return saveConnection(event)">
+                <input type="hidden" id="connId">
+                <div class="form-group">
+                    <label for="connName">Connection Name</label>
+                    <input type="text" id="connName" required placeholder="e.g., Production DB">
+                </div>
+                <div class="form-group">
+                    <label for="connHost">Host</label>
+                    <input type="text" id="connHost" required placeholder="localhost">
+                </div>
+                <div class="form-group">
+                    <label for="connPort">Port</label>
+                    <input type="number" id="connPort" required value="3306" min="1" max="65535">
+                </div>
+                <div class="form-group">
+                    <label for="connDatabase">Database Name</label>
+                    <input type="text" id="connDatabase" required placeholder="mydb">
+                </div>
+                <div class="form-group">
+                    <label for="connUsername">Database Username</label>
+                    <input type="text" id="connUsername" required placeholder="root">
+                </div>
+                <div class="form-group">
+                    <label for="connPassword">Database Password</label>
+                    <input type="password" id="connPassword" placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn-submit">Save Connection</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- API Key Modal -->
+    <div id="apiKeyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create API Key</h3>
+                <button onclick="closeModal('apiKeyModal')" class="close-btn">&times;</button>
+            </div>
+            <form id="apiKeyForm" onsubmit="return createApiKey(event)">
+                <input type="hidden" id="apiKeyConnectionId">
+                <div class="form-group">
+                    <label for="apiKeyName">Key Name</label>
+                    <input type="text" id="apiKeyName" required placeholder="e.g., Read-only key">
+                </div>
+                <div class="form-group">
+                    <label>Permissions</label>
+                    <div class="checkbox-group" id="permissionsList"></div>
+                </div>
+                <button type="submit" class="btn-submit">Generate API Key</button>
+            </form>
+            <div id="apiKeyResult" style="display:none;">
+                <p style="margin-top:16px; color:#28a745; font-weight:600;">API Key Generated (save it now):</p>
+                <div class="api-key-display" id="generatedKey"></div>
+            </div>
+        </div>
+    </div>
+
     <script>
+        const PERMISSIONS = ['SHOW_TABLES','DESCRIBE_TABLE','SELECT','EXPLAIN','INSERT','UPDATE','DELETE','CREATE_TABLE','ALTER_TABLE','DROP_TABLE'];
+
         function getToken() { return localStorage.getItem('accessToken'); }
-
-        function redirectToLogin() {
-            localStorage.removeItem('accessToken');
-            window.location.href = '/login';
-        }
-
-        async function loadDashboard() {
-            const token = getToken();
-            if (!token) { redirectToLogin(); return; }
-
-            const content = document.getElementById('dashboardContent');
-
-            try {
-                const res = await fetch('/database-connections', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-
-                if (res.status === 401) { redirectToLogin(); return; }
-                if (!res.ok) { throw new Error('Failed to load'); }
-
-                const json = await res.json();
-                const connections = json.data || [];
-
-                if (connections.length === 0) {
-                    content.innerHTML = '<div class="empty-state"><p>No database connections configured yet.</p></div>';
-                    return;
-                }
-
-                let html = '<div class="cards-grid">';
-                for (const conn of connections) {
-                    const statusClass = conn.active ? 'active' : 'inactive';
-                    const statusText = conn.active ? 'Active' : 'Inactive';
-                    html += '<div class="card">';
-                    html += '<div class="card-header">';
-                    html += '<h3>' + escapeHtml(conn.name || conn.databaseName) + '</h3>';
-                    html += '<span class="status-badge ' + statusClass + '">' + statusText + '</span>';
-                    html += '</div>';
-                    html += '<div class="card-details">';
-                    html += '<div class="detail-row"><span class="label">Host</span><span class="value">' + escapeHtml(conn.host) + ':' + conn.port + '</span></div>';
-                    html += '<div class="detail-row"><span class="label">Database</span><span class="value">' + escapeHtml(conn.databaseName) + '</span></div>';
-                    html += '</div>';
-                    if (conn.apiKeyPrefix) {
-                        html += '<div class="key-prefix">' + escapeHtml(conn.apiKeyPrefix) + '</div>';
-                    }
-                    if (conn.permissions && conn.permissions.length > 0) {
-                        html += '<div class="permissions-section"><div class="title">Permissions</div><div class="permission-tags">';
-                        for (const perm of conn.permissions) {
-                            html += '<span class="permission-tag">' + escapeHtml(perm) + '</span>';
-                        }
-                        html += '</div></div>';
-                    }
-                    html += '</div>';
-                }
-                html += '</div>';
-                content.innerHTML = html;
-
-            } catch (err) {
-                content.innerHTML = '<div class="empty-state"><p>Failed to load connections. <a href="#" onclick="loadDashboard()">Retry</a></p></div>';
-            }
-        }
-
+        function redirectToLogin() { localStorage.removeItem('accessToken'); window.location.href = '/login'; }
         function escapeHtml(str) {
             if (!str) return '';
             var d = document.createElement('div');
@@ -149,15 +247,151 @@
             return d.innerHTML;
         }
 
+        async function loadDashboard() {
+            const token = getToken();
+            if (!token) { redirectToLogin(); return; }
+            const content = document.getElementById('dashboardContent');
+            try {
+                const res = await fetch('/database-connections', { headers: { 'Authorization': 'Bearer ' + token } });
+                if (res.status === 401) { redirectToLogin(); return; }
+                if (!res.ok) { throw new Error('Failed to load'); }
+                const json = await res.json();
+                const connections = json.data || [];
+                if (connections.length === 0) {
+                    content.innerHTML = '<div class="empty-state"><p>No database connections configured yet.</p></div>';
+                    return;
+                }
+                let html = '<div class="cards-grid">';
+                for (const conn of connections) {
+                    const statusClass = conn.active ? 'active' : 'inactive';
+                    const statusText = conn.active ? 'Active' : 'Inactive';
+                    html += '<div class="card">';
+                    html += '<div class="card-header"><h3>' + escapeHtml(conn.name || conn.databaseName) + '</h3>';
+                    html += '<span class="status-badge ' + statusClass + '">' + statusText + '</span></div>';
+                    html += '<div class="card-details">';
+                    html += '<div class="detail-row"><span class="label">Host</span><span class="value">' + escapeHtml(conn.host) + ':' + conn.port + '</span></div>';
+                    html += '<div class="detail-row"><span class="label">Database</span><span class="value">' + escapeHtml(conn.databaseName) + '</span></div>';
+                    html += '</div>';
+                    if (conn.apiKeyPrefix) {
+                        html += '<div class="key-prefix">' + escapeHtml(conn.apiKeyPrefix) + '</div>';
+                    }
+                    html += '<div class="btn-group">';
+                    html += '<button class="btn-secondary" onclick="editConnection(' + conn.connectionId + ')">Edit</button>';
+                    html += '<button class="btn-success" onclick="openApiKeyModal(' + conn.connectionId + ')">Create API Key</button>';
+                    html += '</div></div>';
+                }
+                html += '</div>';
+                content.innerHTML = html;
+            } catch (err) {
+                content.innerHTML = '<div class="empty-state"><p>Failed to load connections. <a href="#" onclick="loadDashboard()">Retry</a></p></div>';
+            }
+        }
+
+        function showConnectionForm() {
+            document.getElementById('connectionForm').reset();
+            document.getElementById('connId').value = '';
+            document.getElementById('connPassword').required = true;
+            document.getElementById('connectionModalTitle').textContent = 'New Database Connection';
+            document.getElementById('connectionModal').classList.add('active');
+        }
+
+        async function editConnection(id) {
+            const token = getToken();
+            const res = await fetch('/database-connections/' + id, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) { alert('Failed to load connection details'); return; }
+            const json = await res.json();
+            const conn = json.data;
+            document.getElementById('connId').value = conn.id;
+            document.getElementById('connName').value = conn.name || '';
+            document.getElementById('connHost').value = conn.host || '';
+            document.getElementById('connPort').value = conn.port || 3306;
+            document.getElementById('connDatabase').value = conn.databaseName || '';
+            document.getElementById('connUsername').value = conn.dbUsername || '';
+            document.getElementById('connPassword').value = '';
+            document.getElementById('connPassword').required = false;
+            document.getElementById('connectionModalTitle').textContent = 'Edit Database Connection';
+            document.getElementById('connectionModal').classList.add('active');
+        }
+
+        async function saveConnection(event) {
+            event.preventDefault();
+            const token = getToken();
+            const id = document.getElementById('connId').value;
+            const password = document.getElementById('connPassword').value;
+            const payload = {
+                name: document.getElementById('connName').value,
+                host: document.getElementById('connHost').value,
+                port: parseInt(document.getElementById('connPort').value),
+                databaseName: document.getElementById('connDatabase').value,
+                dbUsername: document.getElementById('connUsername').value,
+                ...(password ? { password } : {}),
+                showTables: true, describeTable: true, select: true, explain: true,
+                insert: false, update: false, delete: false, createTable: false, alterTable: false, dropTable: false
+            };
+            const url = id ? '/database-connections/' + id : '/database-connections';
+            const method = id ? 'PUT' : 'POST';
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                closeModal('connectionModal');
+                loadDashboard();
+            } else {
+                alert('Failed to save connection');
+            }
+            return false;
+        }
+
+        function openApiKeyModal(connectionId) {
+            document.getElementById('apiKeyConnectionId').value = connectionId;
+            document.getElementById('apiKeyForm').reset();
+            document.getElementById('apiKeyResult').style.display = 'none';
+            const permList = document.getElementById('permissionsList');
+            permList.innerHTML = PERMISSIONS.map(p =>
+                '<label class="checkbox-item"><input type="checkbox" value="' + p + '"> ' + p + '</label>'
+            ).join('');
+            document.getElementById('apiKeyModal').classList.add('active');
+        }
+
+        async function createApiKey(event) {
+            event.preventDefault();
+            const token = getToken();
+            const connectionId = document.getElementById('apiKeyConnectionId').value;
+            const name = document.getElementById('apiKeyName').value;
+            const checked = Array.from(document.querySelectorAll('#permissionsList input:checked')).map(cb => cb.value);
+            const res = await fetch('/api-keys/connections/' + connectionId, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, permissions: checked })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('generatedKey').textContent = data.data.apiKey;
+                document.getElementById('apiKeyResult').style.display = 'block';
+                document.getElementById('apiKeyForm').style.display = 'none';
+                loadDashboard();
+            } else {
+                alert('Failed to create API key');
+            }
+            return false;
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+            if (id === 'apiKeyModal') {
+                document.getElementById('apiKeyForm').style.display = 'block';
+                document.getElementById('apiKeyResult').style.display = 'none';
+            }
+        }
+
         async function handleLogout() {
             const token = getToken();
             if (token) {
-                try {
-                    await fetch('/auth/logout', {
-                        method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + token }
-                    });
-                } catch(e) {}
+                await fetch('/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
             }
             localStorage.removeItem('accessToken');
             window.location.href = '/login';

@@ -8,6 +8,7 @@ import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class McpExecutionService {
@@ -26,7 +28,6 @@ public class McpExecutionService {
 
     @Transactional
     public Object execute(String rawApiKey, String query) {
-        // 1. Hash the provided API key and find matching record
         String keyHash = hashApiKey(rawApiKey);
         ApiKey apiKey = apiKeyRepo.findAll().stream()
                 .filter(k -> k.getKeyHash().equals(keyHash))
@@ -37,13 +38,11 @@ public class McpExecutionService {
             throw new IllegalArgumentException("API key is disabled");
         }
 
-        // 2. Determine required permission from query type
         DatabasePermission requiredPermission = determinePermission(query);
         if (requiredPermission == null) {
             throw new IllegalArgumentException("Unsupported query type");
         }
 
-        // 3. Check permission
         boolean hasPermission = apiKeyPermissionRepo.findAll().stream()
                 .anyMatch(p -> p.getApiKey().getId().equals(apiKey.getId())
                         && p.getPermission() == requiredPermission);
@@ -52,13 +51,9 @@ public class McpExecutionService {
                     "API key does not have " + requiredPermission + " permission");
         }
 
-        // 4. Resolve the database connection
         DatabaseConnection connection = apiKey.getDatabaseConnection();
-
-        // 5. Create dynamic JdbcTemplate
         JdbcTemplate jdbcTemplate = jdbcTemplateProvider.createJdbcTemplate(connection);
 
-        // 6. Execute the query
         String trimmedQuery = query.trim().toUpperCase();
 
         if (trimmedQuery.startsWith("SELECT") || trimmedQuery.startsWith("SHOW")) {
@@ -76,12 +71,10 @@ public class McpExecutionService {
             int affected = jdbcTemplate.update(query);
             return Map.of("affectedRows", affected);
         } else {
-            // DDL or other — use execute
             jdbcTemplate.execute(query);
             return Map.of("message", "Query executed successfully");
         }
     }
-
 
     private DatabasePermission determinePermission(String query) {
         if (query == null || query.isBlank()) {

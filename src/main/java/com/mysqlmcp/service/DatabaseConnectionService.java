@@ -8,7 +8,6 @@ import com.mysqlmcp.dto.response.UpsertConnectionResponse;
 import com.mysqlmcp.entity.ApiKey;
 import com.mysqlmcp.entity.ApiKeyPermission;
 import com.mysqlmcp.entity.DatabaseConnection;
-import com.mysqlmcp.entity.User;
 import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;

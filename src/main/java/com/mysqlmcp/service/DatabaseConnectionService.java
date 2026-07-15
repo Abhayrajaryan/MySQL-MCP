@@ -126,18 +126,28 @@ public class DatabaseConnectionService {
         List<DatabaseConnection> connections = dbConnectionRepo.findAll();
 
         return connections.stream().map(conn -> {
-            String keyPrefix = apiKeyRepo.findAll().stream()
+            ApiKey apiKey = apiKeyRepo.findAll().stream()
                     .filter(k -> k.getDatabaseConnection().getId().equals(conn.getId()))
                     .findFirst()
-                    .map(ApiKey::getKeyPrefix)
                     .orElse(null);
+
+            List<String> permissions = new ArrayList<>();
+            if (apiKey != null) {
+                permissions = apiKeyPermissionRepo.findAll().stream()
+                        .filter(p -> p.getApiKey().getId().equals(apiKey.getId()))
+                        .map(p -> p.getPermission().name())
+                        .toList();
+            }
 
             return ConnectionListItem.builder()
                     .connectionId(conn.getId())
-                    .apiKeyPrefix(keyPrefix)
-                    .databaseName(conn.getDatabaseName())
+                    .name(conn.getName())
                     .host(conn.getHost())
                     .port(conn.getPort())
+                    .databaseName(conn.getDatabaseName())
+                    .apiKeyPrefix(apiKey != null ? apiKey.getKeyPrefix() : null)
+                    .active(conn.getIsActive())
+                    .permissions(permissions)
                     .build();
         }).toList();
     }

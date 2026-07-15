@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MySQL MCP - Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .login-container h1 { text-align: center; color: #333; margin-bottom: 8px; font-size: 24px; }
+        .login-container .subtitle { text-align: center; color: #666; margin-bottom: 32px; font-size: 14px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 6px; color: #555; font-size: 14px; font-weight: 500; }
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+        .form-group input:focus { border-color: #667eea; }
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn-login:hover { opacity: 0.9; }
+        .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 10px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
+            display: none;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>MySQL MCP Server</h1>
+        <p class="subtitle">Sign in to manage your database connections</p>
+        <div id="errorMessage" class="error-message">Invalid username or password. Please try again.</div>
+        <form id="loginForm" onsubmit="return handleLogin(event)">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            </div>
+            <button type="submit" class="btn-login" id="loginButton">Sign In</button>
+        </form>
+    </div>
+    <script>
+        function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const button = document.getElementById('loginButton');
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.style.display = 'none';
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner"></span>Signing in...';
+            fetch('/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(res => {
+                if (!res.ok) {
+                    if (res.status === 401) throw new Error('Invalid credentials');
+                    throw new Error('Login failed');
+                }
+                return res.json();
+            })
+            .then(data => {
+                localStorage.setItem('accessToken', data.accessToken);
+                window.location.href = '/dashboard';
+            })
+            .catch(err => {
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = err.message === 'Invalid credentials'
+                    ? 'Invalid username or password. Please try again.'
+                    : 'Login failed. Please try again.';
+                button.disabled = false;
+                button.innerHTML = 'Sign In';
+            });
+            return false;
+        }
+        if (localStorage.getItem('accessToken')) {
+            window.location.href = '/dashboard';
+        }
+    </script>
+</body>
+</html>

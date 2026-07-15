@@ -12,7 +12,6 @@ import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;
 import com.mysqlmcp.repository.DatabaseConnectionRepository;
-import com.mysqlmcp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,7 +30,6 @@ public class DatabaseConnectionService {
     private final DatabaseConnectionRepository dbConnectionRepo;
     private final ApiKeyRepository apiKeyRepo;
     private final ApiKeyPermissionRepository apiKeyPermissionRepo;
-    private final UserRepository userRepo;
     private final DatabaseCredentialEncryptor encryptor;
 
     @Transactional
@@ -41,7 +39,6 @@ public class DatabaseConnectionService {
         if (isCreate) {
             // Create new connection
             DatabaseConnection connection = new DatabaseConnection();
-            connection.setUser(getDefaultUser());
             connection.setName(request.getName());
             connection.setHost(request.getHost());
             connection.setPort(request.getPort());
@@ -197,19 +194,6 @@ public class DatabaseConnectionService {
     }
 
     // --- Private helpers ---
-
-    /**
-     * Returns user with ID 1, creating it if it doesn't exist.
-     * This is a temporary placeholder until authentication is implemented.
-     */
-    private User getDefaultUser() {
-        return userRepo.findById(1L).orElseGet(() -> {
-            User user = new User();
-            user.setEmail("default@mysqlmcp.local");
-            user.setPasswordHash("placeholder-hash");
-            return userRepo.save(user);
-        });
-    }
 
     private String generateApiKey() {
         byte[] randomBytes = new byte[32];

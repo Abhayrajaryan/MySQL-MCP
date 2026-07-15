@@ -8,14 +8,16 @@ MySQL MCP Server
 ### 1.2 Objective
 The goal of this project is to build a single Spring Boot application that allows AI assistants to securely interact with user-configured MySQL databases through the Model Context Protocol (MCP).
 
+This is a **single-user, self-hosted** application. There is no registration or multi-tenant user system — a person downloads the jar, runs it on their own server, and logs in with either a username/password they configured or a built-in default.
+
 A user will be able to:
-- Register with the application.
+- Run the jar and log in using a configured (or default) username/password.
 - Add one or more MySQL database configurations.
 - Generate API keys associated with a specific database configuration.
 - Assign database-operation permissions to each API key.
 - Connect an MCP-compatible AI assistant using the generated API key.
 - Allow the AI assistant to perform only the database operations permitted for that API key.
-- View audit logs showing what was requested, by whom, what action was performed, and the result.
+- View audit logs showing what was requested, by whom (which API key), what action was performed, and the result.
 
 The application will contain both:
 - **REST APIs** for the future web UI and management operations.
@@ -34,12 +36,12 @@ Both interfaces will exist within a single Spring Boot application and share the
 │   ┌───────────────────────┐       ┌───────────────────────────┐  │
 │   │    REST API Layer     │       │      MCP Tool Layer       │  │
 │   │                       │       │                           │  │
-│   │  User Registration    │       │  showTables              │  │
-│   │  Login                │       │  describeTable           │  │
-│   │  DB Configuration     │       │  executeSelect           │  │
-│   │  API Key Management   │       │  executeInsert           │  │
-│   │  Audit Log Viewing    │       │  executeUpdate           │  │
-│   │  Test Connection      │       │  executeDelete           │  │
+│   │  Login (single user)  │       │  showTables              │  │
+│   │  DB Configuration     │       │  describeTable           │  │
+│   │  API Key Management   │       │  executeSelect           │  │
+│   │  Audit Log Viewing    │       │  executeInsert           │  │
+│   │  Test Connection      │       │  executeUpdate           │  │
+│   │                       │       │  executeDelete           │  │
 │   │                       │       │  explainQuery            │  │
 │   └───────────┬───────────┘       └────────────┬──────────────┘  │
 │               │                                │                 │
@@ -48,7 +50,7 @@ Both interfaces will exist within a single Spring Boot application and share the
 │                   ┌───────────────────────┐                      │
 │                   │     Service Layer     │                      │
 │                   │                       │                      │
-│                   │  Authentication       │                      │
+│                   │  Single-User Auth     │                      │
 │                   │  API Key Validation   │                      │
 │                   │  Permission Checking  │                      │
 │                   │  Audit Logging        │                      │
@@ -60,15 +62,17 @@ Both interfaces will exist within a single Spring Boot application and share the
 │        ┌───────────────────┐    ┌──────────────────────┐        │
 │        │  Application DB   │    │ Dynamic JdbcTemplate │        │
 │        │                   │    │                      │        │
-│        │ users             │    │ Created using user's │        │
-│        │ db_connections    │    │ dynamic DB config    │        │
-│        │ api_keys          │    └──────────┬───────────┘        │
-│        │ permissions       │               │                    │
-│        │ audit_logs        │               ▼                    │
-│        └───────────────────┘      User's External MySQL DB      │
+│        │ db_connections    │    │ Created using user's │        │
+│        │ api_keys          │    │ dynamic DB config    │        │
+│        │ permissions       │    └──────────┬───────────┘        │
+│        │ audit_logs        │               │                    │
+│        └───────────────────┘               ▼                    │
+│                                    User's External MySQL DB      │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
+
+Note: there is no `users` table. The application has exactly one operator, whose credentials are supplied via configuration, not stored as a database row.
 
 ---
 
@@ -79,12 +83,13 @@ REST APIs and MCP tools will be implemented in the same Spring Boot application.
 
 ### 3.2 REST APIs
 REST endpoints will primarily support the UI and application-management operations:
-- Registration
-- Login
+- Login (single configured user)
 - Database configuration management
 - API key management
 - Audit-log viewing
 - Testing database connectivity
+
+There is no registration endpoint — the application ships with exactly one user, defined via configuration.
 
 AI-driven database execution will **not** be exposed through normal REST endpoints.
 
@@ -116,19 +121,40 @@ Connection pooling with HikariCP can be introduced later.
 ### 3.5 Application Database vs Target Database
 
 **Application Database** — Owned by the MySQL MCP application itself:
-- `users`
 - `database_connections`
 - `api_keys`
 - `api_key_permissions`
 - `audit_logs`
 
+There is deliberately **no `users` table** and **no `user_id` foreign key** anywhere in the schema — since only one user ever exists per running instance, ownership modeling is unnecessary. That single user's identity is entirely defined by configuration (properties/environment variables), not persisted as a row.
+
 Spring Data JPA will be used for this database.
 
-**Target Database** — An external MySQL database configured by a user. The application knows nothing about its schema in advance. Dynamic `JdbcTemplate` instances will be used to interact with target databases.
+**Target Database** — An external MySQL database configured by the user. The application knows nothing about its schema in advance. Dynamic `JdbcTemplate` instances will be used to interact with target databases.
 
 ### 3.6 Authentication
+
 Two authentication mechanisms:
-- **REST/UI Authentication** → JWT or session-based; identifies a registered user.
+
+- **REST/UI Authentication** → Single-user, configuration-based login. There is no user table and no registration flow. The application defines default credentials, which can be overridden via `application.properties` or environment variables.
+
+  ```properties
+  # application.properties (defaults, safe for local/dev use only)
+  mysql-mcp.auth.username=admin
+  mysql-mcp.auth.password=admin123
+  ```
+
+  These can be overridden without touching the properties file, using standard Spring Boot relaxed environment-variable binding:
+
+  ```
+  MYSQL_MCP_AUTH_USERNAME=myname
+  MYSQL_MCP_AUTH_PASSWORD=my-strong-password
+  ```
+
+  On login, the submitted username/password is compared against the configured (or default) values. On success, a JWT or session is issued — it identifies "the operator," not a database row, since there is only ever one.
+
+  It is strongly recommended the application log a warning at startup if the default credentials are still in effect, so operators know to override them.
+
 - **MCP Authentication** → API key in HTTP `Authorization` header; identifies an API key, resolves database configuration and permissions.
 
 Expected MCP authentication header: `Authorization: Bearer mcp_live_xxxxxxxxx`
@@ -143,15 +169,14 @@ The raw API key must **never** be stored.
 ### 3.8 Database Password Storage
 Target database passwords must be **encrypted** (not hashed), because the application needs to decrypt them to establish database connections.
 
-| Data            | Method    |
-|-----------------|-----------|
-| User Password   | Hash      |
-| API Key         | Hash      |
-| DB Password     | Encrypt   |
+| Data                  | Method    |
+|-----------------------|-----------|
+| Single-User Password  | Configured (not stored in DB) |
+| API Key               | Hash      |
+| DB Password           | Encrypt   |
 
 ### 3.9 Audit Logging
 The system will log:
-- Who made the request?
 - Which API key was used?
 - Which MCP tool was called?
 - What input was received?
@@ -163,9 +188,11 @@ The system will log:
 - What error occurred, if any?
 - When did it happen?
 
+Since there is only one user, "who made the request" is captured at the API-key level (and, for REST management actions, simply as "the operator") rather than via a user foreign key.
+
 The following must **never** be logged:
 - Raw API keys
-- Raw user passwords
+- The configured single-user password
 - Raw database passwords
 - Decrypted database credentials
 - Authorization headers
@@ -174,23 +201,13 @@ The following must **never** be logged:
 
 ## 4. Database Schema
 
-### 4.1 User
-```
-users
------------------------------------
-id                  BIGINT PK
-email               VARCHAR UNIQUE
-password_hash       VARCHAR
-created_at          TIMESTAMP
-updated_at          TIMESTAMP
-```
+There is no `users` table. The single user's credentials live in configuration only (`application.properties` and/or environment variables), never in the application database.
 
-### 4.2 Database Connection
+### 4.1 Database Connection
 ```
 database_connections
 -----------------------------------
 id                  BIGINT PK
-user_id             BIGINT FK
 name                VARCHAR
 host                VARCHAR
 port                INT
@@ -202,9 +219,11 @@ created_at          TIMESTAMP
 updated_at          TIMESTAMP
 ```
 
+No `user_id` foreign key — every row in this application database belongs to the single operator by definition.
+
 The JDBC URL is constructed internally: `jdbc:mysql://{host}:{port}/{database_name}`
 
-### 4.3 API Key
+### 4.2 API Key
 ```
 api_keys
 -----------------------------------
@@ -221,7 +240,7 @@ last_used_at             TIMESTAMP NULL
 
 One database configuration may have multiple API keys (e.g., Read Only Key, Analytics Key, Admin Key).
 
-### 4.4 API-Key Permissions
+### 4.3 API-Key Permissions
 ```
 api_key_permissions
 -----------------------------------
@@ -246,7 +265,7 @@ public enum DatabasePermission {
 }
 ```
 
-### 4.5 Audit Log
+### 4.4 Audit Log
 ```
 audit_logs
 -----------------------------------
@@ -275,7 +294,7 @@ For database execution, a **summary** is stored instead of the complete raw resp
 com.mysqlmcp
 │
 ├── controller
-│   ├── AuthController
+│   ├── AuthController              (login only — no registration)
 │   ├── DatabaseConnectionController
 │   ├── ApiKeyController
 │   └── AuditLogController
@@ -286,7 +305,7 @@ com.mysqlmcp
 │   └── DatabaseModificationTools
 │
 ├── service
-│   ├── AuthService
+│   ├── SingleUserAuthService        (validates against configured credentials)
 │   ├── DatabaseConnectionService
 │   ├── ApiKeyService
 │   ├── ApiKeyValidationService
@@ -305,14 +324,12 @@ com.mysqlmcp
 │   └── SecurityConfig
 │
 ├── entity
-│   ├── User
 │   ├── DatabaseConnection
 │   ├── ApiKey
 │   ├── ApiKeyPermission
 │   └── AuditLog
 │
 ├── repository
-│   ├── UserRepository
 │   ├── DatabaseConnectionRepository
 │   ├── ApiKeyRepository
 │   ├── ApiKeyPermissionRepository
@@ -336,9 +353,12 @@ com.mysqlmcp
 │   └── AuditOperationStatus
 │
 ├── config
+│   └── AppAuthProperties            (binds mysql-mcp.auth.username / .password)
 │
 └── MysqlMcpApplication
 ```
+
+Note there is no `User` entity and no `UserRepository` — the single user is a configuration concept, not a persisted one.
 
 ---
 
@@ -468,6 +488,7 @@ Suggested error model:
 ```
 
 **Error codes:**
+- `INVALID_CREDENTIALS` (login with wrong username/password)
 - `INVALID_API_KEY`
 - `API_KEY_EXPIRED`
 - `API_KEY_DISABLED`
@@ -485,9 +506,9 @@ Raw internal exceptions and sensitive connection information must **not** be exp
 
 ---
 
-## 10. Development Phases (Solo Learner — ~38 Small Milestones)
+## 10. Development Phases (Solo Learner — ~39 Small Milestones)
 
-Each phase introduces **one or two new concepts** and ends with something you can **run, test, and understand**. No phase depends on authentication, API keys, permissions, or audit logging until those are deliberately introduced later.
+Each phase introduces **one or two new concepts** and ends with something you can **run, test, and understand**. No phase depends on API keys, permissions, or audit logging until those are deliberately introduced later.
 
 For every phase, ask yourself:
 - **What did I build?**
@@ -515,6 +536,7 @@ For every phase, ask yourself:
 
 **Phase 3 — Create the first entity: `DatabaseConnection`**
 - Create entity with fields: `id`, `name`, `host`, `port`, `databaseName`, `dbUsername`, `password` (plain text for now), `isActive`, `createdAt`, `updatedAt`.
+- No `userId` field — this application has only one user.
 - Use `@Entity`, `@Table`, `@Id`, `@GeneratedValue`, `@Column` annotations.
 - **Learn:** Entity lifecycle, how Java objects map to database rows.
 - **Prove it:** Hibernate creates or validates the `database_connections` table. Check with MySQL client.
@@ -613,7 +635,7 @@ For every phase, ask yourself:
 - Implement `encrypt(plainPassword)` and `decrypt(encryptedPassword)`.
 - Use symmetric encryption (e.g., AES-256-GCM).
 - Store the encryption key in `application.properties` (improve later).
-- **Learn:** Encryption vs hashing. Why DB passwords must be encrypted (reversible). Why user passwords and API keys should be hashed (one-way). Key management basics.
+- **Learn:** Encryption vs hashing. Why DB passwords must be encrypted (reversible). Why API keys should be hashed (one-way). Key management basics.
 - **Prove it:** Unit test: encrypt a password → decrypt → original matches.
 
 **Phase 16 — Encrypt before storing, decrypt before connecting**
@@ -727,7 +749,7 @@ For every phase, ask yourself:
 
 **Phase 30 — Audit failed operations**
 - Record failed operations with error code + message.
-- Never log raw API keys, passwords, decrypted credentials, or auth headers.
+- Never log raw API keys, the configured single-user password, decrypted credentials, or auth headers.
 - **Prove it:** Execute invalid query — audit log with `success: false` and error details appears.
 
 ---
@@ -758,34 +780,32 @@ For every phase, ask yourself:
 
 ---
 
-### Stage 10 — User Authentication & Ownership (Phases 35–37)
+### Stage 10 — Single-User Authentication (Phases 35–36)
 
-**Phase 35 — Create `User` entity and registration**
-- Fields: `id`, `email` (unique), `passwordHash`, `createdAt`, `updatedAt`.
-- Hash passwords with bcrypt before storing.
-- Handle duplicate email errors gracefully.
-- **Prove it:** Register a user. Password in database is hashed, not plain text.
+**Phase 35 — Configure single-user credentials**
+- Add `mysql-mcp.auth.username` and `mysql-mcp.auth.password` to `application.properties`, with sane defaults (e.g., `admin` / `admin123`).
+- Create an `AppAuthProperties` (`@ConfigurationProperties`) class binding these values.
+- Confirm the values can be overridden via environment variables (`MYSQL_MCP_AUTH_USERNAME`, `MYSQL_MCP_AUTH_PASSWORD`) using Spring Boot's relaxed binding — no custom code needed for the override itself.
+- Log a startup warning if default credentials are still active.
+- **Learn:** `@ConfigurationProperties`, Spring Boot relaxed environment-variable binding, why secrets shouldn't be hardcoded, why there's no `User` entity when there's only one user.
+- **Prove it:** Application starts with default credentials and logs a warning. Setting the environment variables changes the effective login credentials without touching any file.
 
-**Phase 36 — User login with JWT**
-- Implement login: accept email + password, validate, return JWT containing user ID.
-- **Prove it:** Correct credentials → JWT. Wrong password → error.
-
-**Phase 37 — Protect REST APIs and enforce resource ownership**
-- Add `user_id` FK to `database_connections` and `api_keys`.
-- Protect all management REST endpoints with JWT authentication.
-- User A can only see/edit User A's data — backend-enforced, not just frontend.
-- **Prove it:** User A creates a DB config. User B tries to access it → 403 Forbidden.
+**Phase 36 — Login endpoint and JWT authentication**
+- Implement `POST /auth/login`: accept username + password, compare against `AppAuthProperties` (constant-time comparison), return a JWT on success.
+- Protect all management REST endpoints (`database-connections`, `api-keys`, `audit-logs`) with JWT authentication.
+- No ownership checks are needed anywhere — every resource in the application database implicitly belongs to the single operator.
+- **Prove it:** Correct configured credentials → JWT. Wrong credentials → `INVALID_CREDENTIALS`. Protected endpoints reject requests without a valid JWT.
 
 ---
 
-### Stage 11 — Mutation Operations (Phases 38–40)
+### Stage 11 — Mutation Operations (Phases 37–39)
 
-**Phase 38 — Implement `execute_insert` as an MCP tool**
+**Phase 37 — Implement `execute_insert` as an MCP tool**
 - Add `INSERT` to permissions (already in the enum).
 - Build `executeInsert()`: validate INSERT, `JdbcTemplate.update()`, return affected row count, audit.
 - **Prove it:** Insert a row via MCP. Verify in target database.
 
-**Phase 39 — Implement `execute_update` and `execute_delete` as MCP tools**
+**Phase 38 — Implement `execute_update` and `execute_delete` as MCP tools**
 - Add `UPDATE` and `DELETE` permissions.
 - Build `executeUpdate()` and `executeDelete()`.
 - **Safety:** Reject mutations without `WHERE` clause:
@@ -796,7 +816,7 @@ For every phase, ask yourself:
 - Audit each operation.
 - **Prove it:** WHERE-less DELETE rejected. Safe DELETE works.
 
-**Phase 40 — Implement DDL operations as MCP tools**
+**Phase 39 — Implement DDL operations as MCP tools**
 - Add `CREATE_TABLE`, `ALTER_TABLE`, `DROP_TABLE` permissions.
 - Build `executeDdl()` in `DatabaseExecutionService`.
 - **Safeguards:** Explicit DDL permission required (separate from mutation). Full DDL logged in audit. Consider confirmation step for `DROP TABLE`.
@@ -816,6 +836,7 @@ For every phase, ask yourself:
 
 The project is considered a functional MVP when:
 
+- [x] The operator can log in using configured (or default) single-user credentials.
 - [x] A database configuration can be stored securely.
 - [x] An API key can be generated for that database.
 - [x] Different permissions can be assigned to an API key.
@@ -845,4 +866,4 @@ The project is considered a functional MVP when:
 8. Execute `SHOW TABLES`.
 9. Return the result.
 
-Once this works, the most fundamental technical assumption behind the project is validated. Everything else — API keys, permissions, MCP tools, audit logging, authentication, and UI — builds on that foundation.
+Once this works, the most fundamental technical assumption behind the project is validated. Everything else — API keys, permissions, MCP tools, audit logging, single-user login, and UI — builds on that foundation.

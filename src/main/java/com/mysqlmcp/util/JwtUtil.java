@@ -61,4 +61,14 @@ public class JwtUtil {
                 .parseSignedClaims(token)
                 .getPayload();
     }
+
+    public Date extractExpiration(String token) {
+        try {
+            return parseClaims(token).getExpiration();
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            return e.getClaims().getExpiration();
+        }
+
+    }
 }
+

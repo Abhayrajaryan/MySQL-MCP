@@ -7,7 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -16,6 +18,8 @@ public class AuthService {
 
     private final JwtUtil jwtUtil;
     private final TokenBlacklistService tokenBlacklistService;
+
+    private final Map<String, String> tokenCache = new ConcurrentHashMap<>();
 
     @Value("${mysql-mcp.auth.username}")
     private String configuredUsername;
@@ -41,7 +45,17 @@ public class AuthService {
         }
 
         log.info("Login successful for user: {}", username);
+        String cachedToken = tokenCache.get(username);
+        if (cachedToken != null && isReusable(cachedToken)) {
+            return Map.of(
+                    "accessToken", cachedToken,
+                    "tokenType", "Bearer",
+                    "expiresIn", remainingSeconds(cachedToken)
+            );
+        }
+
         String accessToken = jwtUtil.generateAccessToken(username);
+        tokenCache.put(username, accessToken);
 
         return Map.of(
                 "accessToken", accessToken,
@@ -50,12 +64,23 @@ public class AuthService {
         );
     }
 
+    private boolean isReusable(String token) {
+        return jwtUtil.isTokenValid(token) && !tokenBlacklistService.isBlacklisted(token);
+    }
+
+    private long remainingSeconds(String token) {
+        Date expiry = jwtUtil.extractExpiration(token);
+        long remainingMs = expiry.getTime() - System.currentTimeMillis();
+        return Math.max(remainingMs / 1000, 0);
+    }
+
     public void logout(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
             log.info("Logging out user, blacklisting token");
             tokenBlacklistService.blacklist(token);
+            tokenCache.values().remove(token);
         } else {
             log.warn("Logout request without Bearer token");
         }

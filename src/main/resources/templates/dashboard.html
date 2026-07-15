@@ -231,7 +231,7 @@
                 </div>
                 <div class="form-group">
                     <label for="connPassword">Database Password</label>
-                    <input type="password" id="connPassword" required placeholder="••••••••">
+                    <input type="password" id="connPassword" placeholder="••••••••">
                 </div>
                 <button type="submit" class="btn-submit">Save Connection</button>
             </form>
@@ -354,6 +354,7 @@
         function showConnectionForm() {
             document.getElementById('connectionForm').reset();
             document.getElementById('connId').value = '';
+            document.getElementById('connPassword').required = true;
             document.getElementById('connectionModalTitle').textContent = 'New Database Connection';
             document.getElementById('connectionModal').classList.add('active');
         }
@@ -373,6 +374,7 @@
             document.getElementById('connDatabase').value = conn.databaseName || '';
             document.getElementById('connUsername').value = conn.dbUsername || '';
             document.getElementById('connPassword').value = '';
+            document.getElementById('connPassword').required = false;
             document.getElementById('connectionModalTitle').textContent = 'Edit Database Connection';
             document.getElementById('connectionModal').classList.add('active');
         }
@@ -381,6 +383,7 @@
             event.preventDefault();
             const token = getToken();
             const id = document.getElementById('connId').value;
+            const password = document.getElementById('connPassword').value;
             const payload = {
                 id: id ? parseInt(id) : null,
                 name: document.getElementById('connName').value,
@@ -388,7 +391,7 @@
                 port: parseInt(document.getElementById('connPort').value),
                 databaseName: document.getElementById('connDatabase').value,
                 dbUsername: document.getElementById('connUsername').value,
-                password: document.getElementById('connPassword').value
+                ...(password ? { password } : {})
             };
             const url = '/database-connections';
             const res = await fetch(url, {

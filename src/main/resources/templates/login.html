@@ -101,7 +101,7 @@
             errorDiv.style.display = 'none';
             button.disabled = true;
             button.innerHTML = '<span class="spinner"></span>Signing in...';
-            fetch('/auth/login', {
+            fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })

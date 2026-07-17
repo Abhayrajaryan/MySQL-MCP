@@ -17,7 +17,7 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/database-connections")
+@RequestMapping("/api/database-connections")
 public class DatabaseConnectionController {
 
     private final DatabaseConnectionService dbConnectionService;

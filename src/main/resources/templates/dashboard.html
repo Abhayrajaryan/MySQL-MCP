@@ -281,7 +281,7 @@
             if (!token) { redirectToLogin(); return; }
             const content = document.getElementById('dashboardContent');
             try {
-                const res = await fetch('/database-connections', { headers: { 'Authorization': 'Bearer ' + token } });
+                const res = await fetch('/api/database-connections', { headers: { 'Authorization': 'Bearer ' + token } });
                 if (res.status === 401) { redirectToLogin(); return; }
                 if (!res.ok) { throw new Error('Failed to load'); }
                 const json = await res.json();
@@ -293,7 +293,7 @@
 
                 // Fetch API keys and permissions for all connections
                 const connectionsWithKeys = await Promise.all(connections.map(async (conn) => {
-                    const keys = await fetchApiKeys(conn.connectionId, token);
+                const keys = await fetchApiKeys(conn.connectionId, token);
                     return { ...conn, apiKeys: keys };
                 }));
 
@@ -340,7 +340,7 @@
 
         async function fetchApiKeys(connectionId, token) {
             try {
-                const res = await fetch('/api-keys/connections/' + connectionId, {
+                const res = await fetch('/api/api-keys/connections/' + connectionId, {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 if (!res.ok) return [];
@@ -361,7 +361,7 @@
 
         async function editConnection(id) {
             const token = getToken();
-            const res = await fetch('/database-connections/' + id, {
+            const res = await fetch('/api/database-connections/' + id, {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
             if (!res.ok) { alert('Failed to load connection details'); return; }
@@ -393,7 +393,7 @@
                 dbUsername: document.getElementById('connUsername').value,
                 ...(password ? { password } : {})
             };
-            const url = '/database-connections';
+            const url = '/api/database-connections';
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
@@ -425,7 +425,7 @@
             const connectionId = document.getElementById('apiKeyConnectionId').value;
             const name = document.getElementById('apiKeyName').value;
             const checked = Array.from(document.querySelectorAll('#permissionsList input:checked')).map(cb => cb.value);
-            const res = await fetch('/api-keys/connections/' + connectionId, {
+            const res = await fetch('/api/api-keys/connections/' + connectionId, {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, permissions: checked })
@@ -453,7 +453,7 @@
         async function handleLogout() {
             const token = getToken();
             if (token) {
-                await fetch('/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+                await fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
             }
             localStorage.removeItem('accessToken');
             window.location.href = '/login';

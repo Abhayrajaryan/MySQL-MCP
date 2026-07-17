@@ -12,7 +12,7 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/mcp")
+@RequestMapping("/api/mcp")
 public class McpController {
 
     private final McpExecutionService mcpExecutionService;

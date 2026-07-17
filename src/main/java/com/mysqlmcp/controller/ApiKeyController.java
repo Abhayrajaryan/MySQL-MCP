@@ -16,7 +16,7 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api-keys")
+@RequestMapping("/api/api-keys")
 public class ApiKeyController {
 
     private final DatabaseConnectionService dbConnectionService;

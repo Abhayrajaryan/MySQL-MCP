@@ -27,7 +27,7 @@ public class AuthController {
         return "dashboard";
     }
 
-    @PostMapping("/auth/login")
+    @PostMapping("/api/auth/login")
     @ResponseBody
     public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
         String username = credentials.get("username");
@@ -46,7 +46,7 @@ public class AuthController {
         return ResponseEntity.ok(result);
     }
 
-    @PostMapping("/auth/logout")
+    @PostMapping("/api/auth/logout")
     @ResponseBody
     public ResponseEntity<?> logout(HttpServletRequest request) {
         log.info("Logout request received");

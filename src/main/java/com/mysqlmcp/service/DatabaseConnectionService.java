@@ -1,6 +1,7 @@
 package com.mysqlmcp.service;
 
 import com.mysqlmcp.database.DatabaseCredentialEncryptor;
+import com.mysqlmcp.database.DynamicJdbcTemplateProvider;
 import com.mysqlmcp.dto.request.UpsertDatabaseConnectionRequest;
 import com.mysqlmcp.dto.response.ConnectionDetailResponse;
 import com.mysqlmcp.dto.response.ConnectionListItem;
@@ -12,6 +13,7 @@ import com.mysqlmcp.repository.ApiKeyRepository;
 import com.mysqlmcp.repository.DatabaseConnectionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,7 @@ public class DatabaseConnectionService {
     private final ApiKeyRepository apiKeyRepo;
     private final ApiKeyPermissionRepository apiKeyPermissionRepo;
     private final DatabaseCredentialEncryptor encryptor;
+    private final DynamicJdbcTemplateProvider jdbcTemplateProvider;
 
     @Transactional
     public UpsertConnectionResponse upsert(UpsertDatabaseConnectionRequest request) {
@@ -174,6 +177,87 @@ public class DatabaseConnectionService {
 
         log.info("API key generated successfully for connection id: {}", connectionId);
         return rawKey;
+    }
+
+    public List<Map<String, Object>> executeShowTables(String rawApiKey) {
+        String keyHash = hashApiKey(rawApiKey);
+        ApiKey apiKey = apiKeyRepo.findAll().stream()
+                .filter(k -> k.getKeyHash().equals(keyHash))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Invalid API key"));
+
+        DatabaseConnection conn = apiKey.getDatabaseConnection();
+        return executeQuery(conn, "SHOW TABLES");
+    }
+
+    public List<Map<String, Object>> executeDescribeTable(String rawApiKey, String tableName) {
+        String keyHash = hashApiKey(rawApiKey);
+        ApiKey apiKey = apiKeyRepo.findAll().stream()
+                .filter(k -> k.getKeyHash().equals(keyHash))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Invalid API key"));
+
+        DatabaseConnection conn = apiKey.getDatabaseConnection();
+        return executeQuery(conn, "DESCRIBE " + tableName);
+    }
+
+    public List<Map<String, Object>> executeSelect(String rawApiKey, String query) {
+        String keyHash = hashApiKey(rawApiKey);
+        ApiKey apiKey = apiKeyRepo.findAll().stream()
+                .filter(k -> k.getKeyHash().equals(keyHash))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Invalid API key"));
+
+        DatabaseConnection conn = apiKey.getDatabaseConnection();
+        return executeQuery(conn, query);
+    }
+
+    public List<Map<String, Object>> executeExplain(String rawApiKey, String query) {
+        String keyHash = hashApiKey(rawApiKey);
+        ApiKey apiKey = apiKeyRepo.findAll().stream()
+                .filter(k -> k.getKeyHash().equals(keyHash))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Invalid API key"));
+
+        DatabaseConnection conn = apiKey.getDatabaseConnection();
+        return executeQuery(conn, "EXPLAIN " + query);
+    }
+
+    public int executeUpdate(String rawApiKey, String query) {
+        String keyHash = hashApiKey(rawApiKey);
+        ApiKey apiKey = apiKeyRepo.findAll().stream()
+                .filter(k -> k.getKeyHash().equals(keyHash))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Invalid API key"));
+
+        DatabaseConnection conn = apiKey.getDatabaseConnection();
+        return executeUpdate(conn, query);
+    }
+
+    public void executeDdl(String rawApiKey, String query) {
+        String keyHash = hashApiKey(rawApiKey);
+        ApiKey apiKey = apiKeyRepo.findAll().stream()
+                .filter(k -> k.getKeyHash().equals(keyHash))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Invalid API key"));
+
+        DatabaseConnection conn = apiKey.getDatabaseConnection();
+        executeDdl(conn, query);
+    }
+
+    private List<Map<String, Object>> executeQuery(DatabaseConnection conn, String query) {
+        JdbcTemplate jdbcTemplate = jdbcTemplateProvider.createJdbcTemplate(conn);
+        return jdbcTemplate.queryForList(query);
+    }
+
+    private int executeUpdate(DatabaseConnection conn, String query) {
+        JdbcTemplate jdbcTemplate = jdbcTemplateProvider.createJdbcTemplate(conn);
+        return jdbcTemplate.update(query);
+    }
+
+    private void executeDdl(DatabaseConnection conn, String query) {
+        JdbcTemplate jdbcTemplate = jdbcTemplateProvider.createJdbcTemplate(conn);
+        jdbcTemplate.execute(query);
     }
 
     private String hashApiKey(String rawKey) {

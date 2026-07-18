@@ -174,14 +174,32 @@ Application properties are defined in `application.properties`.
 
 ## MCP Client Configuration
 
-The server uses streamable HTTP transport at `/sse`. The API key is passed directly as a **parameter** to each MCP tool — not as an HTTP header.
+The server uses streamable HTTP transport at `/sse`.
+
+### GitHub Copilot
+
+Add to your Copilot MCP configuration:
+
+```json
+{
+  "servers": {
+    "mysql-mcp": {
+      "type": "sse",
+      "url": "http://localhost:8081/sse"
+    }
+  }
+}
+```
 
 ### Claude Desktop
+
+Add to `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "mysql": {
+    "mysql-mcp": {
+      "type": "sse",
       "url": "http://localhost:8081/sse"
     }
   }
@@ -190,10 +208,13 @@ The server uses streamable HTTP transport at `/sse`. The API key is passed direc
 
 ### Cursor
 
+Add to your Cursor MCP configuration:
+
 ```json
 {
   "mcpServers": {
-    "mysql": {
+    "mysql-mcp": {
+      "type": "sse",
       "url": "http://localhost:8081/sse"
     }
   }
@@ -202,7 +223,7 @@ The server uses streamable HTTP transport at `/sse`. The API key is passed direc
 
 ### Using the API Key
 
-When an AI assistant calls an MCP tool, just tell it the API key value. The key is a regular function parameter, not a Bearer token. For example:
+When an AI assistant calls an MCP tool, just tell it the API key value. The key is passed as a regular tool parameter, not as a Bearer header. For example:
 
 > "Use API key `mcp_live_M5bOcF4kIP5...` to query the database."
 

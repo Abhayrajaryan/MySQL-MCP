@@ -185,6 +185,79 @@
             word-break: break-all;
             margin-top: 12px;
         }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 2px solid #e8e8e8; }
+        .tab-btn {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #888;
+            font-weight: 500;
+        }
+        .tab-btn.active { color: #667eea; border-bottom-color: #667eea; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Audit log */
+        .summary-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .summary-card { background: white; border-radius: 10px; padding: 16px 20px; border: 1px solid #e8e8e8; }
+        .summary-card .stat-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+        .summary-card .stat-value { font-size: 24px; font-weight: 700; color: #333; }
+        .summary-card.ok .stat-value { color: #2e7d32; }
+        .summary-card.bad .stat-value { color: #c0392b; }
+        .filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: end;
+            background: white;
+            border: 1px solid #e8e8e8;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .filter-field { display: flex; flex-direction: column; gap: 4px; }
+        .filter-field label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; }
+        .filter-field select, .filter-field input {
+            padding: 8px 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .audit-table-wrap { background: white; border-radius: 10px; border: 1px solid #e8e8e8; overflow-x: auto; }
+        table.audit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        table.audit-table th {
+            text-align: left;
+            padding: 10px 14px;
+            background: #f8f9fa;
+            color: #666;
+            font-size: 11px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #e8e8e8;
+            white-space: nowrap;
+        }
+        table.audit-table td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+        table.audit-table tr:last-child td { border-bottom: none; }
+        .audit-query {
+            max-width: 320px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            cursor: help;
+        }
+        .result-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+        .result-badge.allowed { background: #e8f5e9; color: #2e7d32; }
+        .result-badge.denied { background: #fdecea; color: #c0392b; }
+        .source-tag { padding: 2px 8px; border-radius: 4px; font-size: 10px; background: #eef0ff; color: #5568d3; font-weight: 600; }
+        .pagination-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; font-size: 13px; color: #666; }
+        .error-text { color: #c0392b; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -193,12 +266,94 @@
     <button onclick="handleLogout()" class="btn-logout">Logout</button>
 </nav>
 <div class="container">
-    <div class="page-header">
-        <h2>Database Connections</h2>
-        <button onclick="showConnectionForm()" class="btn-primary">+ New Connection</button>
+    <div class="tabs">
+        <button class="tab-btn active" id="tabBtnConnections" onclick="switchTab('connections')">Database Connections</button>
+        <button class="tab-btn" id="tabBtnAudit" onclick="switchTab('audit')">Audit Log</button>
     </div>
-    <div id="dashboardContent"></div>
+
+    <div id="connectionsTab" class="tab-panel active">
+        <div class="page-header">
+            <h2>Database Connections</h2>
+            <button onclick="showConnectionForm()" class="btn-primary">+ New Connection</button>
+        </div>
+        <div id="dashboardContent"></div>
+    </div>
+
+    <div id="auditTab" class="tab-panel">
+        <div class="page-header">
+            <h2>Audit Log</h2>
+            <span style="font-size:13px; color:#888;">Who requested what, whether it was allowed, and how long it took</span>
+        </div>
+
+        <div class="summary-cards" id="auditSummaryCards"></div>
+
+        <div class="filter-bar">
+            <div class="filter-field">
+                <label for="auditFilterConnection">Connection</label>
+                <select id="auditFilterConnection" onchange="onAuditConnectionFilterChange()"><option value="">All</option></select>
+            </div>
+            <div class="filter-field">
+                <label for="auditFilterApiKey">API Key</label>
+                <select id="auditFilterApiKey"><option value="">All</option></select>
+            </div>
+            <div class="filter-field">
+                <label for="auditFilterSource">Source</label>
+                <select id="auditFilterSource">
+                    <option value="">All</option>
+                    <option value="MCP">MCP</option>
+                    <option value="REST">REST</option>
+                    <option value="SYSTEM">SYSTEM</option>
+                </select>
+            </div>
+            <div class="filter-field">
+                <label for="auditFilterSuccess">Result</label>
+                <select id="auditFilterSuccess">
+                    <option value="">All</option>
+                    <option value="true">Allowed</option>
+                    <option value="false">Denied / Failed</option>
+                </select>
+            </div>
+            <div class="filter-field">
+                <label for="auditFilterOperation">Operation</label>
+                <select id="auditFilterOperation">
+                    <option value="">All</option>
+                    <option value="SHOW_TABLES">SHOW_TABLES</option>
+                    <option value="DESCRIBE_TABLE">DESCRIBE_TABLE</option>
+                    <option value="SELECT">SELECT</option>
+                    <option value="EXPLAIN">EXPLAIN</option>
+                    <option value="INSERT">INSERT</option>
+                    <option value="UPDATE">UPDATE</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="CREATE_TABLE">CREATE_TABLE</option>
+                    <option value="ALTER_TABLE">ALTER_TABLE</option>
+                    <option value="DROP_TABLE">DROP_TABLE</option>
+                </select>
+            </div>
+            <div class="filter-field">
+                <label for="auditFilterFrom">From</label>
+                <input type="datetime-local" id="auditFilterFrom">
+            </div>
+            <div class="filter-field">
+                <label for="auditFilterTo">To</label>
+                <input type="datetime-local" id="auditFilterTo">
+            </div>
+            <button class="btn-primary" onclick="applyAuditFilters()">Apply Filters</button>
+            <button class="btn-secondary" onclick="resetAuditFilters()">Reset</button>
+        </div>
+
+        <div class="audit-table-wrap">
+            <div id="auditTableContainer"></div>
+            <div class="pagination-bar">
+                <span id="auditPageInfo"></span>
+                <div class="btn-group" style="margin:0;">
+                    <button class="btn-secondary" id="auditPrevBtn" onclick="changeAuditPage(-1)">&larr; Prev</button>
+                    <button class="btn-secondary" id="auditNextBtn" onclick="changeAuditPage(1)">Next &rarr;</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
 
 <!-- Connection Form Modal -->
 <div id="connectionModal" class="modal">
@@ -498,6 +653,200 @@
         localStorage.removeItem('accessToken');
         window.location.href = '/login';
         loadSecurityDefaults();
+    }
+
+    // ---------------- Tabs ----------------
+    function switchTab(tab) {
+        const isConnections = tab === 'connections';
+        document.getElementById('connectionsTab').classList.toggle('active', isConnections);
+        document.getElementById('auditTab').classList.toggle('active', !isConnections);
+        document.getElementById('tabBtnConnections').classList.toggle('active', isConnections);
+        document.getElementById('tabBtnAudit').classList.toggle('active', !isConnections);
+        if (!isConnections && !auditInitialized) {
+            initAuditTab();
+        }
+    }
+
+    // ---------------- Audit Log ----------------
+    let auditInitialized = false;
+    let auditPage = 0;
+    const auditPageSize = 25;
+    let auditHasNext = false;
+    let auditApiKeyOptions = [];
+
+    async function initAuditTab() {
+        auditInitialized = true;
+        await loadAuditFilterOptions();
+        await loadAuditSummary();
+        await loadAuditLogs();
+    }
+
+    async function loadAuditFilterOptions() {
+        const token = getToken();
+        try {
+            const res = await fetch('/api/audit-logs/filter-options', { headers: { 'Authorization': 'Bearer ' + token } });
+            if (res.status === 401) { redirectToLogin(); return; }
+            const json = await res.json();
+            const data = json.data || { connections: [], apiKeys: [] };
+
+            const connSelect = document.getElementById('auditFilterConnection');
+            connSelect.innerHTML = '<option value="">All</option>' +
+                data.connections.map(c => '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>').join('');
+
+            auditApiKeyOptions = data.apiKeys || [];
+            renderAuditApiKeyOptions();
+        } catch (e) {
+            console.warn('Could not load audit filter options', e);
+        }
+    }
+
+    function renderAuditApiKeyOptions() {
+        const connectionId = document.getElementById('auditFilterConnection').value;
+        const keySelect = document.getElementById('auditFilterApiKey');
+        const filtered = connectionId
+            ? auditApiKeyOptions.filter(k => String(k.connectionId) === String(connectionId))
+            : auditApiKeyOptions;
+        keySelect.innerHTML = '<option value="">All</option>' +
+            filtered.map(k => '<option value="' + k.id + '">' + escapeHtml(k.name) + '</option>').join('');
+    }
+
+    function onAuditConnectionFilterChange() {
+        renderAuditApiKeyOptions();
+    }
+
+    function buildAuditQueryParams() {
+        const params = new URLSearchParams();
+        const connectionId = document.getElementById('auditFilterConnection').value;
+        const apiKeyId = document.getElementById('auditFilterApiKey').value;
+        const sourceType = document.getElementById('auditFilterSource').value;
+        const success = document.getElementById('auditFilterSuccess').value;
+        const operation = document.getElementById('auditFilterOperation').value;
+        const from = document.getElementById('auditFilterFrom').value;
+        const to = document.getElementById('auditFilterTo').value;
+
+        if (connectionId) params.set('connectionId', connectionId);
+        if (apiKeyId) params.set('apiKeyId', apiKeyId);
+        if (sourceType) params.set('sourceType', sourceType);
+        if (success) params.set('success', success);
+        if (operation) params.set('operation', operation);
+        if (from) params.set('from', from + ':00');
+        if (to) params.set('to', to + ':00');
+        params.set('page', auditPage);
+        params.set('size', auditPageSize);
+        return params;
+    }
+
+    function applyAuditFilters() {
+        auditPage = 0;
+        loadAuditSummary();
+        loadAuditLogs();
+    }
+
+    function resetAuditFilters() {
+        document.getElementById('auditFilterConnection').value = '';
+        renderAuditApiKeyOptions();
+        document.getElementById('auditFilterApiKey').value = '';
+        document.getElementById('auditFilterSource').value = '';
+        document.getElementById('auditFilterSuccess').value = '';
+        document.getElementById('auditFilterOperation').value = '';
+        document.getElementById('auditFilterFrom').value = '';
+        document.getElementById('auditFilterTo').value = '';
+        applyAuditFilters();
+    }
+
+    function changeAuditPage(delta) {
+        const next = auditPage + delta;
+        if (next < 0) return;
+        if (delta > 0 && !auditHasNext) return;
+        auditPage = next;
+        loadAuditLogs();
+    }
+
+    async function loadAuditSummary() {
+        const token = getToken();
+        const container = document.getElementById('auditSummaryCards');
+        try {
+            const res = await fetch('/api/audit-logs/summary', { headers: { 'Authorization': 'Bearer ' + token } });
+            if (res.status === 401) { redirectToLogin(); return; }
+            const json = await res.json();
+            const s = json.data || {};
+            const avg = s.averageExecutionTimeMs != null ? Math.round(s.averageExecutionTimeMs) + ' ms' : '—';
+            container.innerHTML =
+                '<div class="summary-card"><div class="stat-label">Total Requests</div><div class="stat-value">' + (s.totalRequests || 0) + '</div></div>' +
+                '<div class="summary-card ok"><div class="stat-label">Allowed</div><div class="stat-value">' + (s.allowedRequests || 0) + '</div></div>' +
+                '<div class="summary-card bad"><div class="stat-label">Denied / Failed</div><div class="stat-value">' + (s.deniedOrFailedRequests || 0) + '</div></div>' +
+                '<div class="summary-card"><div class="stat-label">Avg. Duration</div><div class="stat-value">' + avg + '</div></div>';
+        } catch (e) {
+            container.innerHTML = '';
+        }
+    }
+
+    async function loadAuditLogs() {
+        const token = getToken();
+        const container = document.getElementById('auditTableContainer');
+        container.innerHTML = '<div class="empty-state"><p>Loading...</p></div>';
+        try {
+            const params = buildAuditQueryParams();
+            const res = await fetch('/api/audit-logs?' + params.toString(), { headers: { 'Authorization': 'Bearer ' + token } });
+            if (res.status === 401) { redirectToLogin(); return; }
+            if (!res.ok) { throw new Error('Failed to load audit logs'); }
+            const json = await res.json();
+            const pageData = json.data || { content: [], totalElements: 0, number: 0, last: true };
+            renderAuditTable(pageData.content || []);
+            auditHasNext = !pageData.last;
+
+            const info = document.getElementById('auditPageInfo');
+            const totalElements = pageData.totalElements || 0;
+            const shownFrom = totalElements === 0 ? 0 : (pageData.number * auditPageSize) + 1;
+            const shownTo = Math.min(totalElements, (pageData.number + 1) * auditPageSize);
+            info.textContent = totalElements === 0 ? 'No results' : ('Showing ' + shownFrom + '-' + shownTo + ' of ' + totalElements);
+
+            document.getElementById('auditPrevBtn').disabled = pageData.number === 0;
+            document.getElementById('auditNextBtn').disabled = pageData.last;
+        } catch (e) {
+            container.innerHTML = '<div class="empty-state"><p>Failed to load audit logs. <a href="#" onclick="loadAuditLogs()">Retry</a></p></div>';
+        }
+    }
+
+    function renderAuditTable(entries) {
+        const container = document.getElementById('auditTableContainer');
+        if (entries.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p>No audit log entries match these filters.</p></div>';
+            return;
+        }
+
+        let html = '<table class="audit-table"><thead><tr>' +
+            '<th>Time</th><th>API Key</th><th>Connection</th><th>Source</th><th>Operation</th>' +
+            '<th>Request</th><th>Result</th><th>Details</th><th>Duration</th>' +
+            '</tr></thead><tbody>';
+
+        for (const e of entries) {
+            const time = e.createdAt ? new Date(e.createdAt).toLocaleString() : '—';
+            const keyLabel = e.apiKeyName ? escapeHtml(e.apiKeyName) : '<span style="color:#aaa;">Unknown key</span>';
+            const connLabel = e.connectionName ? escapeHtml(e.connectionName) : '—';
+            const resultBadge = e.success
+                ? '<span class="result-badge allowed">Allowed</span>'
+                : '<span class="result-badge denied">' + escapeHtml(e.errorCode || 'Denied') + '</span>';
+            const details = e.success
+                ? escapeHtml(e.responseSummary || '')
+                : '<span class="error-text">' + escapeHtml(e.errorMessage || '') + '</span>';
+            const requestText = escapeHtml(e.requestPayload || '');
+
+            html += '<tr>';
+            html += '<td>' + time + '</td>';
+            html += '<td>' + keyLabel + '</td>';
+            html += '<td>' + connLabel + '</td>';
+            html += '<td><span class="source-tag">' + escapeHtml(e.sourceType || '') + '</span></td>';
+            html += '<td>' + escapeHtml(e.operation || '') + '</td>';
+            html += '<td><div class="audit-query" title="' + requestText + '">' + requestText + '</div></td>';
+            html += '<td>' + resultBadge + '</td>';
+            html += '<td>' + details + '</td>';
+            html += '<td>' + (e.executionTimeMs != null ? e.executionTimeMs + ' ms' : '—') + '</td>';
+            html += '</tr>';
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
     }
 
     loadDashboard();

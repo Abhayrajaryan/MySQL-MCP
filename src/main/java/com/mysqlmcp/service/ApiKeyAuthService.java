@@ -1,5 +1,6 @@
 package com.mysqlmcp.service;
 
+import com.mysqlmcp.config.SecurityDefaultsProperties;
 import com.mysqlmcp.entity.ApiKey;
 import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.repository.ApiKeyPermissionRepository;
@@ -22,6 +23,7 @@ public class ApiKeyAuthService {
 
     private final ApiKeyRepository apiKeyRepository;
     private final ApiKeyPermissionRepository permissionRepository;
+    private final SecurityDefaultsProperties securityDefaults;
 
     /**
      * Validates an API key and checks if it has the required permission.
@@ -49,6 +51,27 @@ public class ApiKeyAuthService {
         if (!hasPermission) {
             throw new IllegalArgumentException(
                     "API key does not have " + requiredPermission + " permission");
+        }
+
+        enforceGlobalSecurityDefaults(requiredPermission);
+    }
+
+    /**
+     * Applies the server-wide write/DDL kill-switch on top of the per-key
+     * permission check above. A key can be granted a write or DDL permission
+     * and still be refused here if the operator hasn't explicitly enabled
+     * that class of operation server-wide.
+     */
+    private void enforceGlobalSecurityDefaults(DatabasePermission permission) {
+        if (permission.isWriteOperation() && !securityDefaults.isWriteOperationsEnabled()) {
+            throw new IllegalArgumentException(
+                    "Write operations (INSERT/UPDATE/DELETE) are disabled by default on this server. "
+                            + "Set mysql-mcp.security.enable-write-operations=true to allow them.");
+        }
+        if (permission.isDdlOperation() && !securityDefaults.isDdlOperationsEnabled()) {
+            throw new IllegalArgumentException(
+                    "DDL operations (CREATE/ALTER/DROP TABLE) are disabled by default on this server. "
+                            + "Set mysql-mcp.security.enable-ddl-operations=true to allow them.");
         }
     }
 

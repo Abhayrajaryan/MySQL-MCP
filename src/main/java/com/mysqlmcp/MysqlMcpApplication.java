@@ -27,8 +27,10 @@ public class MysqlMcpApplication {
             log.warn("*                                                               *");
             log.warn("*  DEFAULT CREDENTIALS ARE ACTIVE!                              *");
             log.warn("*                                                               *");
-            log.warn("*  Username: admin                                              *");
-            log.warn("*  Password: admin123                                           *");
+            log.warn("*  The default username/password shipped in                    *");
+            log.warn("*  application.properties has not been changed.                *");
+            log.warn("*  Do not expose this instance to the public internet          *");
+            log.warn("*  until you override them.                                    *");
             log.warn("*                                                               *");
             log.warn("*  Override them using environment variables:                   *");
             log.warn("*    MYSQL_MCP_AUTH_USERNAME=yourname                           *");

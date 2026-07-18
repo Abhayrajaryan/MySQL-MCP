@@ -1,5 +1,6 @@
 package com.mysqlmcp.service;
 
+import com.mysqlmcp.config.SecurityDefaultsProperties;
 import com.mysqlmcp.database.DatabaseCredentialEncryptor;
 import com.mysqlmcp.dto.request.UpsertDatabaseConnectionRequest;
 import com.mysqlmcp.dto.response.ConnectionDetailResponse;
@@ -34,6 +35,7 @@ public class DatabaseConnectionService {
     private final ApiKeyPermissionRepository apiKeyPermissionRepo;
     private final DatabaseCredentialEncryptor encryptor;
     private final ApiKeyAuthService apiKeyAuthService;
+    private final SecurityDefaultsProperties securityDefaults;
 
     @Transactional
     public UpsertConnectionResponse upsert(UpsertDatabaseConnectionRequest request) {
@@ -159,11 +161,17 @@ public class DatabaseConnectionService {
         }).toList();
     }
 
+    @Transactional
     public String generateApiKeyForConnection(Long connectionId, String keyName, List<String> permissions) {
         log.info("Generating new API key for connection id: {}, name: {}, permissions: {}",
                 connectionId, keyName, permissions);
         DatabaseConnection conn = dbConnectionRepo.findById(connectionId)
                 .orElseThrow(() -> new IllegalArgumentException("DatabaseConnection not found with id: " + connectionId));
+
+        // Resolve and validate every requested permission up front. Doing this before
+        // any persistence means a bad or disabled permission anywhere in the list
+        // aborts the whole request instead of leaving a partially-configured API key.
+        List<DatabasePermission> resolvedPermissions = resolveAndValidatePermissions(permissions);
 
         byte[] randomBytes = new byte[32];
         new SecureRandom().nextBytes(randomBytes);
@@ -176,25 +184,44 @@ public class DatabaseConnectionService {
         apiKey.setKeyHash(apiKeyAuthService.hashApiKey(rawKey));
         apiKeyRepo.save(apiKey);
 
-        if (permissions != null) {
-            for (String permissionName : permissions) {
-                DatabasePermission permission;
-                try {
-                    permission = DatabasePermission.valueOf(permissionName);
-                } catch (IllegalArgumentException ex) {
-                    throw new IllegalArgumentException("Unknown permission: " + permissionName);
-                }
-
-                ApiKeyPermission apiKeyPermission = new ApiKeyPermission();
-                apiKeyPermission.setApiKey(apiKey);
-                apiKeyPermission.setPermission(permission);
-                apiKeyPermissionRepo.save(apiKeyPermission);
-            }
+        for (DatabasePermission permission : resolvedPermissions) {
+            ApiKeyPermission apiKeyPermission = new ApiKeyPermission();
+            apiKeyPermission.setApiKey(apiKey);
+            apiKeyPermission.setPermission(permission);
+            apiKeyPermissionRepo.save(apiKeyPermission);
         }
 
         log.info("API key generated successfully for connection id: {} with {} permission(s)",
-                connectionId, permissions == null ? 0 : permissions.size());
+                connectionId, resolvedPermissions.size());
         return rawKey;
+    }
+
+    private List<DatabasePermission> resolveAndValidatePermissions(List<String> permissionNames) {
+        if (permissionNames == null) {
+            return List.of();
+        }
+
+        return permissionNames.stream().map(permissionName -> {
+            DatabasePermission permission;
+            try {
+                permission = DatabasePermission.valueOf(permissionName);
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("Unknown permission: " + permissionName);
+            }
+
+            if (permission.isWriteOperation() && !securityDefaults.isWriteOperationsEnabled()) {
+                throw new IllegalArgumentException(
+                        "Cannot grant " + permission + ": write operations are disabled by default on this "
+                                + "server. Set mysql-mcp.security.enable-write-operations=true to allow granting it.");
+            }
+            if (permission.isDdlOperation() && !securityDefaults.isDdlOperationsEnabled()) {
+                throw new IllegalArgumentException(
+                        "Cannot grant " + permission + ": DDL operations are disabled by default on this "
+                                + "server. Set mysql-mcp.security.enable-ddl-operations=true to allow granting it.");
+            }
+
+            return permission;
+        }).toList();
     }
 
 }

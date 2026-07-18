@@ -1,5 +1,6 @@
 package com.mysqlmcp.database;
 
+import com.mysqlmcp.config.QueryLimitsProperties;
 import com.mysqlmcp.entity.DatabaseConnection;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import javax.sql.DataSource;
 public class DynamicJdbcTemplateProvider {
 
     private final DatabaseCredentialEncryptor credentialEncryptor;
+    private final QueryLimitsProperties queryLimits;
 
     private String buildJdbcUrl(DatabaseConnection connection) {
         if (connection == null) {
@@ -52,6 +54,10 @@ public class DynamicJdbcTemplateProvider {
         String jdbcUrl = buildJdbcUrl(connection);
         String decryptedPassword = credentialEncryptor.decrypt(connection.getEncryptedPassword());
         DataSource dataSource = createDataSource(jdbcUrl, connection.getDbUsername(), decryptedPassword);
-        return new JdbcTemplate(dataSource);
+
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        jdbcTemplate.setQueryTimeout(queryLimits.getTimeoutSeconds());
+        jdbcTemplate.setMaxRows(queryLimits.getMaxRows());
+        return jdbcTemplate;
     }
 }

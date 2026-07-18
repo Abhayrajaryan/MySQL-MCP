@@ -67,12 +67,14 @@ public class RemoteQueryExecutionService {
     /** Used for INSERT, UPDATE and DELETE — the permission passed in doubles as the audited operation name. */
     @Transactional
     public int executeWrite(String rawApiKey, DatabasePermission permission, String query) {
+        validateStatementType(permission, query);
         return executeAndAudit(rawApiKey, permission, query, jdbcTemplate -> jdbcTemplate.update(query));
     }
 
     /** Used for CREATE_TABLE, ALTER_TABLE and DROP_TABLE. */
     @Transactional
     public void executeDdl(String rawApiKey, DatabasePermission permission, String query) {
+        validateStatementType(permission, query);
         executeAndAudit(rawApiKey, permission, query, jdbcTemplate -> {
             jdbcTemplate.execute(query);
             return null;
@@ -109,6 +111,39 @@ public class RemoteQueryExecutionService {
         Long connectionId = apiKey != null && apiKey.getDatabaseConnection() != null
                 ? apiKey.getDatabaseConnection().getId() : null;
         auditLogService.record(apiKeyId, connectionId, permission.name(), query, success, errorMessage, elapsedMs);
+    }
+
+    /**
+     * Lightweight check that the first keyword of the SQL matches the claimed
+     * permission, so a key with only INSERT cannot sneak DROP TABLE through
+     * {@code executeInsert}. This is not an SQL parser — it only looks at the
+     * first non-whitespace token — but it catches the common bypass case.
+     */
+    private void validateStatementType(DatabasePermission permission, String sql) {
+        if (sql == null || sql.isBlank()) return;
+
+        String trimmed = sql.trim().toUpperCase();
+        // Extract the first word (the statement keyword)
+        String firstWord = trimmed.split("\\s+", 2)[0];
+
+        // Determine what the first word should be for each permission
+        String expectedKeyword = switch (permission) {
+            case INSERT -> "INSERT";
+            case UPDATE -> "UPDATE";
+            case DELETE -> "DELETE";
+            case CREATE_TABLE -> "CREATE";
+            case ALTER_TABLE -> "ALTER";
+            case DROP_TABLE -> "DROP";
+            // SELECT, EXPLAIN, SHOW_TABLES, DESCRIBE_TABLE are read-only
+            // and use a different code path that pre-pends the keyword.
+            default -> null;
+        };
+
+        if (expectedKeyword != null && !firstWord.equals(expectedKeyword)) {
+            throw new IllegalArgumentException(
+                    "Permission " + permission + " does not allow " + firstWord + " statements. "
+                            + "Expected keyword: " + expectedKeyword);
+        }
     }
 
     private void validateQueryLength(String input) {

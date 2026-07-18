@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# API key output — contains live secrets from testing
+Api_keys

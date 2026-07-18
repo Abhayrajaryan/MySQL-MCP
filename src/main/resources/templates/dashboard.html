@@ -777,7 +777,7 @@
             html += '<td>' + keyLabel + '</td>';
             html += '<td>' + connLabel + '</td>';
             html += '<td>' + escapeHtml(e.operation || '') + '</td>';
-            html += '<td><div class="audit-query" title="' + queryText + '">' + queryText + '</div>' + errorText + '</td>';
+            html += '<td><div class="audit-query" title="' + escapeHtml(queryText) + '">' + queryText + '</div>' + errorText + '</td>';
             html += '<td>' + resultBadge + '</td>';
             html += '<td>' + (e.executionTimeMs != null ? e.executionTimeMs + ' ms' : '—') + '</td>';
             html += '</tr>';

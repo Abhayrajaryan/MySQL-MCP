@@ -19,14 +19,14 @@ public class HomeController {
     @GetMapping("/")
     public String root(HttpServletRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        
+
         // Check if user is authenticated (has a valid JWT token)
-        if (authentication != null && authentication.isAuthenticated() 
-            && !"anonymousUser".equals(authentication.getPrincipal())) {
+        if (authentication != null && authentication.isAuthenticated()
+                && !"anonymousUser".equals(authentication.getPrincipal())) {
             log.debug("Authenticated user accessing root - redirecting to dashboard");
             return "redirect:/dashboard";
         }
-        
+
         log.debug("Unauthenticated user accessing root - redirecting to login");
         return "redirect:/login";
     }

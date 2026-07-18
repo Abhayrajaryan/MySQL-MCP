@@ -1,5 +1,6 @@
-package com.mysqlmcp.security;
+package com.mysqlmcp.config;
 
+import com.mysqlmcp.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;

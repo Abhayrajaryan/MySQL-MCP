@@ -4,7 +4,7 @@ import com.mysqlmcp.entity.ApiKey;
 import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;
-import com.mysqlmcp.service.DatabaseConnectionService;
+import com.mysqlmcp.service.RemoteQueryExecutionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -19,16 +19,16 @@ public class DatabaseModificationTools {
 
     private final ApiKeyRepository apiKeyRepository;
     private final ApiKeyPermissionRepository permissionRepository;
-    private final DatabaseConnectionService dbConnectionService;
+    private final RemoteQueryExecutionService remoteQueryExecutionService;
 
     @Tool(description = "Execute an INSERT query. Requires INSERT permission. Returns affected rows count in CSV format.")
     public String executeInsert(
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "INSERT query to execute") String query) {
-        
+
         validateApiKeyAndPermission(apiKey, DatabasePermission.INSERT);
-        
-        int affectedRows = dbConnectionService.executeUpdate(apiKey, query);
+
+        int affectedRows = remoteQueryExecutionService.executeUpdate(apiKey, query);
         return "success,affectedRows," + affectedRows + "\n";
     }
 
@@ -36,10 +36,10 @@ public class DatabaseModificationTools {
     public String executeUpdate(
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "UPDATE query to execute") String query) {
-        
+
         validateApiKeyAndPermission(apiKey, DatabasePermission.UPDATE);
-        
-        int affectedRows = dbConnectionService.executeUpdate(apiKey, query);
+
+        int affectedRows = remoteQueryExecutionService.executeUpdate(apiKey, query);
         return "success,affectedRows," + affectedRows + "\n";
     }
 
@@ -47,10 +47,10 @@ public class DatabaseModificationTools {
     public String executeDelete(
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "DELETE query to execute") String query) {
-        
+
         validateApiKeyAndPermission(apiKey, DatabasePermission.DELETE);
-        
-        int affectedRows = dbConnectionService.executeUpdate(apiKey, query);
+
+        int affectedRows = remoteQueryExecutionService.executeUpdate(apiKey, query);
         return "success,affectedRows," + affectedRows + "\n";
     }
 
@@ -58,10 +58,10 @@ public class DatabaseModificationTools {
     public String createTable(
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "CREATE TABLE query to execute") String query) {
-        
+
         validateApiKeyAndPermission(apiKey, DatabasePermission.CREATE_TABLE);
-        
-        dbConnectionService.executeDdl(apiKey, query);
+
+        remoteQueryExecutionService.executeDdl(apiKey, query);
         return "success,message,Table created successfully\n";
     }
 
@@ -69,10 +69,10 @@ public class DatabaseModificationTools {
     public String alterTable(
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "ALTER TABLE query to execute") String query) {
-        
+
         validateApiKeyAndPermission(apiKey, DatabasePermission.ALTER_TABLE);
-        
-        dbConnectionService.executeDdl(apiKey, query);
+
+        remoteQueryExecutionService.executeDdl(apiKey, query);
         return "success,message,Table altered successfully\n";
     }
 
@@ -80,16 +80,16 @@ public class DatabaseModificationTools {
     public String dropTable(
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "DROP TABLE query to execute") String query) {
-        
+
         validateApiKeyAndPermission(apiKey, DatabasePermission.DROP_TABLE);
-        
-        dbConnectionService.executeDdl(apiKey, query);
+
+        remoteQueryExecutionService.executeDdl(apiKey, query);
         return "success,message,Table dropped successfully\n";
     }
 
     private void validateApiKeyAndPermission(String rawApiKey, DatabasePermission requiredPermission) {
         String keyHash = hashApiKey(rawApiKey);
-        
+
         ApiKey apiKey = apiKeyRepository.findAll().stream()
                 .filter(k -> k.getKeyHash().equals(keyHash))
                 .findFirst()
@@ -102,7 +102,7 @@ public class DatabaseModificationTools {
         boolean hasPermission = permissionRepository.findAll().stream()
                 .anyMatch(p -> p.getApiKey().getId().equals(apiKey.getId())
                         && p.getPermission() == requiredPermission);
-        
+
         if (!hasPermission) {
             throw new IllegalArgumentException(
                     "API key does not have " + requiredPermission + " permission");

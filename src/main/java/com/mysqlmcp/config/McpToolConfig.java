@@ -1,5 +1,8 @@
-package com.mysqlmcp.mcp;
+package com.mysqlmcp.config;
 
+import com.mysqlmcp.mcp.DatabaseMetadataTools;
+import com.mysqlmcp.mcp.DatabaseModificationTools;
+import com.mysqlmcp.mcp.DatabaseQueryTools;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.context.annotation.Bean;

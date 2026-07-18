@@ -4,7 +4,7 @@ import com.mysqlmcp.entity.ApiKey;
 import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;
-import com.mysqlmcp.service.DatabaseConnectionService;
+import com.mysqlmcp.service.RemoteQueryExecutionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -21,16 +21,16 @@ public class DatabaseQueryTools {
 
     private final ApiKeyRepository apiKeyRepository;
     private final ApiKeyPermissionRepository permissionRepository;
-    private final DatabaseConnectionService dbConnectionService;
+    private final RemoteQueryExecutionService remoteQueryExecutionService;
 
     @Tool(description = "Execute a SELECT query on the database. Requires SELECT permission. Returns results in CSV format.")
     public String executeSelect(
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "SELECT query to execute") String query) {
-        
+
         validateApiKeyAndPermission(apiKey, DatabasePermission.SELECT);
-        
-        List<Map<String, Object>> result = dbConnectionService.executeSelect(apiKey, query);
+
+        List<Map<String, Object>> result = remoteQueryExecutionService.executeSelect(apiKey, query);
         return convertToCsv(result);
     }
 
@@ -38,16 +38,16 @@ public class DatabaseQueryTools {
     public String explainQuery(
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "Query to explain") String query) {
-        
+
         validateApiKeyAndPermission(apiKey, DatabasePermission.EXPLAIN);
-        
-        List<Map<String, Object>> result = dbConnectionService.executeExplain(apiKey, query);
+
+        List<Map<String, Object>> result = remoteQueryExecutionService.executeExplain(apiKey, query);
         return convertToCsv(result);
     }
 
     private void validateApiKeyAndPermission(String rawApiKey, DatabasePermission requiredPermission) {
         String keyHash = hashApiKey(rawApiKey);
-        
+
         ApiKey apiKey = apiKeyRepository.findAll().stream()
                 .filter(k -> k.getKeyHash().equals(keyHash))
                 .findFirst()
@@ -60,7 +60,7 @@ public class DatabaseQueryTools {
         boolean hasPermission = permissionRepository.findAll().stream()
                 .anyMatch(p -> p.getApiKey().getId().equals(apiKey.getId())
                         && p.getPermission() == requiredPermission);
-        
+
         if (!hasPermission) {
             throw new IllegalArgumentException(
                     "API key does not have " + requiredPermission + " permission");
@@ -92,17 +92,17 @@ public class DatabaseQueryTools {
 
         // Write header
         csv.append(String.join(",", columns.stream()
-                .map(this::escapeCsv)
-                .toArray(String[]::new)))
-           .append("\n");
+                        .map(this::escapeCsv)
+                        .toArray(String[]::new)))
+                .append("\n");
 
         // Write data rows
         for (Map<String, Object> row : rows) {
             csv.append(columns.stream()
-                    .map(col -> escapeCsv(row.get(col)))
-                    .reduce((a, b) -> a + "," + b)
-                    .orElse(""))
-               .append("\n");
+                            .map(col -> escapeCsv(row.get(col)))
+                            .reduce((a, b) -> a + "," + b)
+                            .orElse(""))
+                    .append("\n");
         }
 
         // Add metadata
@@ -117,7 +117,7 @@ public class DatabaseQueryTools {
         }
 
         String str = value.toString();
-        
+
         if (str.contains(",") || str.contains("\"") || str.contains("\n") || str.contains("\r")) {
             str = str.replace("\"", "\"\"");
             return "\"" + str + "\"";

@@ -33,6 +33,7 @@ public class DatabaseConnectionService {
     private final ApiKeyRepository apiKeyRepo;
     private final ApiKeyPermissionRepository apiKeyPermissionRepo;
     private final DatabaseCredentialEncryptor encryptor;
+    private final ApiKeyAuthService apiKeyAuthService;
 
     @Transactional
     public UpsertConnectionResponse upsert(UpsertDatabaseConnectionRequest request) {
@@ -172,7 +173,7 @@ public class DatabaseConnectionService {
         apiKey.setDatabaseConnection(conn);
         apiKey.setName(keyName);
         apiKey.setKeyPrefix(rawKey.substring(0, Math.min(20, rawKey.length())) + "...");
-        apiKey.setKeyHash(hashApiKey(rawKey));
+        apiKey.setKeyHash(apiKeyAuthService.hashApiKey(rawKey));
         apiKeyRepo.save(apiKey);
 
         if (permissions != null) {
@@ -196,14 +197,4 @@ public class DatabaseConnectionService {
         return rawKey;
     }
 
-    private String hashApiKey(String rawKey) {
-        try {
-            java.security.MessageDigest digest =
-                    java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(rawKey.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(hash);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to hash API key", e);
-        }
-    }
 }

@@ -10,8 +10,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.MessageDigest;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +27,7 @@ public class RemoteQueryExecutionService {
 
     private final ApiKeyRepository apiKeyRepo;
     private final DynamicJdbcTemplateProvider jdbcTemplateProvider;
+    private final ApiKeyAuthService apiKeyAuthService;
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> executeShowTables(String rawApiKey) {
@@ -74,7 +73,7 @@ public class RemoteQueryExecutionService {
      * proxy on ApiKey can be initialized.
      */
     private DatabaseConnection resolveConnection(String rawApiKey) {
-        String keyHash = hashApiKey(rawApiKey);
+        String keyHash = apiKeyAuthService.hashApiKey(rawApiKey);
         ApiKey apiKey = apiKeyRepo.findAll().stream()
                 .filter(k -> k.getKeyHash().equals(keyHash))
                 .findFirst()
@@ -86,15 +85,5 @@ public class RemoteQueryExecutionService {
     private List<Map<String, Object>> executeQuery(DatabaseConnection conn, String query) {
         JdbcTemplate jdbcTemplate = jdbcTemplateProvider.createJdbcTemplate(conn);
         return jdbcTemplate.queryForList(query);
-    }
-
-    private String hashApiKey(String rawKey) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(rawKey.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(hash);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to hash API key", e);
-        }
     }
 }

@@ -7,7 +7,9 @@ import com.mysqlmcp.dto.response.ConnectionDetailResponse;
 import com.mysqlmcp.dto.response.ConnectionListItem;
 import com.mysqlmcp.dto.response.UpsertConnectionResponse;
 import com.mysqlmcp.entity.ApiKey;
+import com.mysqlmcp.entity.ApiKeyPermission;
 import com.mysqlmcp.entity.DatabaseConnection;
+import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;
 import com.mysqlmcp.repository.DatabaseConnectionRepository;
@@ -159,8 +161,9 @@ public class DatabaseConnectionService {
         }).toList();
     }
 
-    public String generateApiKeyForConnection(Long connectionId, String keyName) {
-        log.info("Generating new API key for connection id: {}, name: {}", connectionId, keyName);
+    public String generateApiKeyForConnection(Long connectionId, String keyName, List<String> permissions) {
+        log.info("Generating new API key for connection id: {}, name: {}, permissions: {}",
+                connectionId, keyName, permissions);
         DatabaseConnection conn = dbConnectionRepo.findById(connectionId)
                 .orElseThrow(() -> new IllegalArgumentException("DatabaseConnection not found with id: " + connectionId));
 
@@ -175,7 +178,24 @@ public class DatabaseConnectionService {
         apiKey.setKeyHash(hashApiKey(rawKey));
         apiKeyRepo.save(apiKey);
 
-        log.info("API key generated successfully for connection id: {}", connectionId);
+        if (permissions != null) {
+            for (String permissionName : permissions) {
+                DatabasePermission permission;
+                try {
+                    permission = DatabasePermission.valueOf(permissionName);
+                } catch (IllegalArgumentException ex) {
+                    throw new IllegalArgumentException("Unknown permission: " + permissionName);
+                }
+
+                ApiKeyPermission apiKeyPermission = new ApiKeyPermission();
+                apiKeyPermission.setApiKey(apiKey);
+                apiKeyPermission.setPermission(permission);
+                apiKeyPermissionRepo.save(apiKeyPermission);
+            }
+        }
+
+        log.info("API key generated successfully for connection id: {} with {} permission(s)",
+                connectionId, permissions == null ? 0 : permissions.size());
         return rawKey;
     }
 

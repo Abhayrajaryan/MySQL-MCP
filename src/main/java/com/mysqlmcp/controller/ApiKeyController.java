@@ -27,7 +27,8 @@ public class ApiKeyController {
             @RequestBody CreateApiKeyRequest request) {
 
         log.info("Creating new API key '{}' for connection id: {}", request.getName(), connectionId);
-        String rawKey = dbConnectionService.generateApiKeyForConnection(connectionId, request.getName());
+        String rawKey = dbConnectionService.generateApiKeyForConnection(
+                connectionId, request.getName(), request.getPermissions());
 
         CreateApiKeyResponse response = CreateApiKeyResponse.builder()
                 .connectionId(connectionId)

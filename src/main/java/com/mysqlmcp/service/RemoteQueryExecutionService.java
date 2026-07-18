@@ -3,9 +3,8 @@ package com.mysqlmcp.service;
 import com.mysqlmcp.config.QueryLimitsProperties;
 import com.mysqlmcp.database.DynamicJdbcTemplateProvider;
 import com.mysqlmcp.entity.ApiKey;
-import com.mysqlmcp.repository.ApiKeyRepository;
+import com.mysqlmcp.enums.DatabasePermission;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,110 +13,102 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Responsible for executing SQL against a target/remote database on behalf of
- * an API key. This is intentionally separate from {@link DatabaseConnectionService},
+ * Executes SQL against a target/remote database on behalf of an API key.
+ * This is intentionally separate from {@link DatabaseConnectionService},
  * which manages this application's own DatabaseConnection/ApiKey records —
  * running arbitrary SQL against a dynamically-resolved external database is a
  * different responsibility and shouldn't live in the same class.
  *
- * <p>Every execution path here is bounded by the runtime protections in
- * {@link QueryLimitsProperties} (query length up front, timeout/max-rows via
- * {@link DynamicJdbcTemplateProvider}) and reports success/failure to the log
- * so operators have visibility into what ran, even before full DB-backed audit
- * logging exists.
+ * <p>This is the single choke point every MCP tool call goes through, which
+ * makes it the natural place to both authorize the request and record it to
+ * the audit trail (see {@link AuditLogService}) with one consistent shape:
+ * who (the resolved API key), what (the permission/operation and the SQL
+ * text), whether it succeeded, and how long the whole thing — auth included
+ * — took.
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RemoteQueryExecutionService {
 
-    private final ApiKeyRepository apiKeyRepo;
     private final DynamicJdbcTemplateProvider jdbcTemplateProvider;
     private final ApiKeyAuthService apiKeyAuthService;
+    private final AuditLogService auditLogService;
     private final QueryLimitsProperties queryLimits;
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> executeShowTables(String rawApiKey) {
-        ApiKey apiKey = resolveApiKey(rawApiKey);
-        return executeQuery(apiKey, "SHOW_TABLES", "SHOW TABLES");
+        return executeAndAudit(rawApiKey, DatabasePermission.SHOW_TABLES, "SHOW TABLES",
+                jdbcTemplate -> jdbcTemplate.queryForList("SHOW TABLES"));
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> executeDescribeTable(String rawApiKey, String tableName) {
-        ApiKey apiKey = resolveApiKey(rawApiKey);
-        validateQueryLength(tableName);
-        return executeQuery(apiKey, "DESCRIBE_TABLE", "DESCRIBE " + tableName);
+        if (tableName == null || tableName.isBlank()) {
+            throw new IllegalArgumentException("Table name must not be null or blank");
+        }
+        String query = "DESCRIBE " + tableName;
+        return executeAndAudit(rawApiKey, DatabasePermission.DESCRIBE_TABLE, query,
+                jdbcTemplate -> jdbcTemplate.queryForList(query));
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> executeSelect(String rawApiKey, String query) {
-        ApiKey apiKey = resolveApiKey(rawApiKey);
-        validateQueryLength(query);
-        return executeQuery(apiKey, "SELECT", query);
+        return executeAndAudit(rawApiKey, DatabasePermission.SELECT, query,
+                jdbcTemplate -> jdbcTemplate.queryForList(query));
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> executeExplain(String rawApiKey, String query) {
-        ApiKey apiKey = resolveApiKey(rawApiKey);
-        validateQueryLength(query);
-        return executeQuery(apiKey, "EXPLAIN", "EXPLAIN " + query);
+        String explainQuery = "EXPLAIN " + query;
+        return executeAndAudit(rawApiKey, DatabasePermission.EXPLAIN, explainQuery,
+                jdbcTemplate -> jdbcTemplate.queryForList(explainQuery));
     }
 
+    /** Used for INSERT, UPDATE and DELETE — the permission passed in doubles as the audited operation name. */
     @Transactional
-    public int executeUpdate(String rawApiKey, String query) {
-        ApiKey apiKey = resolveApiKey(rawApiKey);
-        validateQueryLength(query);
-        long startedAt = System.currentTimeMillis();
-        try {
-            JdbcTemplate jdbcTemplate = jdbcTemplateProvider.createJdbcTemplate(apiKey.getDatabaseConnection());
-            int affectedRows = jdbcTemplate.update(query);
-            logSuccess(apiKey, "UPDATE", System.currentTimeMillis() - startedAt);
-            return affectedRows;
-        } catch (RuntimeException ex) {
-            logFailure(apiKey, "UPDATE", System.currentTimeMillis() - startedAt, ex);
-            throw ex;
-        }
+    public int executeWrite(String rawApiKey, DatabasePermission permission, String query) {
+        return executeAndAudit(rawApiKey, permission, query, jdbcTemplate -> jdbcTemplate.update(query));
     }
 
+    /** Used for CREATE_TABLE, ALTER_TABLE and DROP_TABLE. */
     @Transactional
-    public void executeDdl(String rawApiKey, String query) {
-        ApiKey apiKey = resolveApiKey(rawApiKey);
-        validateQueryLength(query);
-        long startedAt = System.currentTimeMillis();
-        try {
-            JdbcTemplate jdbcTemplate = jdbcTemplateProvider.createJdbcTemplate(apiKey.getDatabaseConnection());
+    public void executeDdl(String rawApiKey, DatabasePermission permission, String query) {
+        executeAndAudit(rawApiKey, permission, query, jdbcTemplate -> {
             jdbcTemplate.execute(query);
-            logSuccess(apiKey, "DDL", System.currentTimeMillis() - startedAt);
-        } catch (RuntimeException ex) {
-            logFailure(apiKey, "DDL", System.currentTimeMillis() - startedAt, ex);
-            throw ex;
-        }
+            return null;
+        });
     }
 
     /**
-     * Resolves the ApiKey (and its lazily-loaded DatabaseConnection) for a raw
-     * API key. Must run inside the same transaction as the caller so the
-     * DatabaseConnection proxy can be initialized.
+     * Resolves and authorizes the API key, runs {@code action} against a
+     * JdbcTemplate for its target connection, and always records the attempt
+     * to the audit trail — success or failure, including auth failures.
      */
-    private ApiKey resolveApiKey(String rawApiKey) {
-        String keyHash = apiKeyAuthService.hashApiKey(rawApiKey);
-        return apiKeyRepo.findAll().stream()
-                .filter(k -> k.getKeyHash().equals(keyHash))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Invalid API key"));
-    }
-
-    private List<Map<String, Object>> executeQuery(ApiKey apiKey, String operation, String query) {
+    private <T> T executeAndAudit(String rawApiKey, DatabasePermission permission, String query, SqlAction<T> action) {
         long startedAt = System.currentTimeMillis();
+        ApiKey apiKey = null;
         try {
+            apiKey = apiKeyAuthService.resolveApiKey(rawApiKey);
+            apiKeyAuthService.validatePermission(apiKey, permission);
+            validateQueryLength(query);
+
             JdbcTemplate jdbcTemplate = jdbcTemplateProvider.createJdbcTemplate(apiKey.getDatabaseConnection());
-            List<Map<String, Object>> result = jdbcTemplate.queryForList(query);
-            logSuccess(apiKey, operation, System.currentTimeMillis() - startedAt);
+            T result = action.run(jdbcTemplate);
+
+            audit(apiKey, permission, query, true, null, System.currentTimeMillis() - startedAt);
             return result;
         } catch (RuntimeException ex) {
-            logFailure(apiKey, operation, System.currentTimeMillis() - startedAt, ex);
+            audit(apiKey, permission, query, false, ex.getMessage(), System.currentTimeMillis() - startedAt);
             throw ex;
         }
+    }
+
+    private void audit(ApiKey apiKey, DatabasePermission permission, String query,
+                       boolean success, String errorMessage, long elapsedMs) {
+        Long apiKeyId = apiKey != null ? apiKey.getId() : null;
+        Long connectionId = apiKey != null && apiKey.getDatabaseConnection() != null
+                ? apiKey.getDatabaseConnection().getId() : null;
+        auditLogService.record(apiKeyId, connectionId, permission.name(), query, success, errorMessage, elapsedMs);
     }
 
     private void validateQueryLength(String input) {
@@ -131,13 +122,8 @@ public class RemoteQueryExecutionService {
         }
     }
 
-    private void logSuccess(ApiKey apiKey, String operation, long elapsedMs) {
-        log.info("Query executed successfully - apiKeyId={}, connectionId={}, operation={}, elapsedMs={}",
-                apiKey.getId(), apiKey.getDatabaseConnection().getId(), operation, elapsedMs);
-    }
-
-    private void logFailure(ApiKey apiKey, String operation, long elapsedMs, Exception error) {
-        log.warn("Query execution failed - apiKeyId={}, connectionId={}, operation={}, elapsedMs={}, error={}",
-                apiKey.getId(), apiKey.getDatabaseConnection().getId(), operation, elapsedMs, error.getMessage());
+    @FunctionalInterface
+    private interface SqlAction<T> {
+        T run(JdbcTemplate jdbcTemplate);
     }
 }

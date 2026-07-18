@@ -1,8 +1,6 @@
 package com.mysqlmcp.mcp;
 
-import com.mysqlmcp.repository.ApiKeyPermissionRepository;
-import com.mysqlmcp.repository.ApiKeyRepository;
-import com.mysqlmcp.service.ApiKeyAuthService;
+import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.service.RemoteQueryExecutionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
@@ -14,16 +12,13 @@ import org.springframework.stereotype.Component;
 public class DatabaseModificationTools {
 
     private final RemoteQueryExecutionService remoteQueryExecutionService;
-    private final ApiKeyAuthService apiKeyAuthService;
 
     @Tool(description = "Execute an INSERT query. Requires INSERT permission. Returns affected rows count in CSV format.")
     public String executeInsert(
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "INSERT query to execute") String query) {
 
-        apiKeyAuthService.validateApiKeyAndPermission(apiKey, com.mysqlmcp.enums.DatabasePermission.INSERT);
-
-        int affectedRows = remoteQueryExecutionService.executeUpdate(apiKey, query);
+        int affectedRows = remoteQueryExecutionService.executeWrite(apiKey, DatabasePermission.INSERT, query);
         return "success,affectedRows," + affectedRows + "\n";
     }
 
@@ -32,9 +27,7 @@ public class DatabaseModificationTools {
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "UPDATE query to execute") String query) {
 
-        apiKeyAuthService.validateApiKeyAndPermission(apiKey, com.mysqlmcp.enums.DatabasePermission.UPDATE);
-
-        int affectedRows = remoteQueryExecutionService.executeUpdate(apiKey, query);
+        int affectedRows = remoteQueryExecutionService.executeWrite(apiKey, DatabasePermission.UPDATE, query);
         return "success,affectedRows," + affectedRows + "\n";
     }
 
@@ -43,9 +36,7 @@ public class DatabaseModificationTools {
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "DELETE query to execute") String query) {
 
-        apiKeyAuthService.validateApiKeyAndPermission(apiKey, com.mysqlmcp.enums.DatabasePermission.DELETE);
-
-        int affectedRows = remoteQueryExecutionService.executeUpdate(apiKey, query);
+        int affectedRows = remoteQueryExecutionService.executeWrite(apiKey, DatabasePermission.DELETE, query);
         return "success,affectedRows," + affectedRows + "\n";
     }
 
@@ -54,9 +45,7 @@ public class DatabaseModificationTools {
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "CREATE TABLE query to execute") String query) {
 
-        apiKeyAuthService.validateApiKeyAndPermission(apiKey, com.mysqlmcp.enums.DatabasePermission.CREATE_TABLE);
-
-        remoteQueryExecutionService.executeDdl(apiKey, query);
+        remoteQueryExecutionService.executeDdl(apiKey, DatabasePermission.CREATE_TABLE, query);
         return "success,message,Table created successfully\n";
     }
 
@@ -65,9 +54,7 @@ public class DatabaseModificationTools {
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "ALTER TABLE query to execute") String query) {
 
-        apiKeyAuthService.validateApiKeyAndPermission(apiKey, com.mysqlmcp.enums.DatabasePermission.ALTER_TABLE);
-
-        remoteQueryExecutionService.executeDdl(apiKey, query);
+        remoteQueryExecutionService.executeDdl(apiKey, DatabasePermission.ALTER_TABLE, query);
         return "success,message,Table altered successfully\n";
     }
 
@@ -76,9 +63,7 @@ public class DatabaseModificationTools {
             @ToolParam(description = "API key for authentication") String apiKey,
             @ToolParam(description = "DROP TABLE query to execute") String query) {
 
-        apiKeyAuthService.validateApiKeyAndPermission(apiKey, com.mysqlmcp.enums.DatabasePermission.DROP_TABLE);
-
-        remoteQueryExecutionService.executeDdl(apiKey, query);
+        remoteQueryExecutionService.executeDdl(apiKey, DatabasePermission.DROP_TABLE, query);
         return "success,message,Table dropped successfully\n";
     }
 }

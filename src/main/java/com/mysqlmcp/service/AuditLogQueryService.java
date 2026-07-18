@@ -6,8 +6,7 @@ import com.mysqlmcp.dto.response.AuditLogSummaryResponse;
 import com.mysqlmcp.entity.ApiKey;
 import com.mysqlmcp.entity.AuditLog;
 import com.mysqlmcp.entity.DatabaseConnection;
-import com.mysqlmcp.enums.AuditSourceType;
-import com.mysqlmcp.repository.ApiKeyRepository;
+import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.repository.AuditLogRepository;
 import com.mysqlmcp.repository.DatabaseConnectionRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -32,28 +32,18 @@ public class AuditLogQueryService {
 
     private final AuditLogRepository auditLogRepository;
     private final DatabaseConnectionRepository databaseConnectionRepository;
-    private final ApiKeyRepository apiKeyRepository;
 
     @Transactional(readOnly = true)
-    public Page<AuditLogResponse> search(Long apiKeyId, Long connectionId, AuditSourceType sourceType,
-                                         Boolean success, String operation,
+    public Page<AuditLogResponse> search(Long connectionId, String operation,
                                          LocalDateTime from, LocalDateTime to, Pageable pageable) {
-        return auditLogRepository
-                .search(apiKeyId, connectionId, sourceType, success, operation, from, to, pageable)
-                .map(this::toResponse);
+        return auditLogRepository.search(connectionId, operation, from, to, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
     public AuditLogSummaryResponse summary() {
-        long allowed = auditLogRepository.countBySuccess(true);
-        long deniedOrFailed = auditLogRepository.countBySuccess(false);
-        Double avg = auditLogRepository.averageExecutionTimeMs();
-
         return AuditLogSummaryResponse.builder()
-                .totalRequests(allowed + deniedOrFailed)
-                .allowedRequests(allowed)
-                .deniedOrFailedRequests(deniedOrFailed)
-                .averageExecutionTimeMs(avg)
+                .totalRequests(auditLogRepository.count())
+                .averageExecutionTimeMs(auditLogRepository.averageExecutionTimeMs())
                 .build();
     }
 
@@ -63,15 +53,9 @@ public class AuditLogQueryService {
                 .map(c -> AuditLogFilterOptionsResponse.Option.builder().id(c.getId()).name(c.getName()).build())
                 .toList();
 
-        List<AuditLogFilterOptionsResponse.ApiKeyOption> apiKeys = apiKeyRepository.findAll().stream()
-                .map(k -> AuditLogFilterOptionsResponse.ApiKeyOption.builder()
-                        .id(k.getId())
-                        .name(k.getName())
-                        .connectionId(k.getDatabaseConnection() != null ? k.getDatabaseConnection().getId() : null)
-                        .build())
-                .toList();
+        List<String> operations = Arrays.stream(DatabasePermission.values()).map(Enum::name).toList();
 
-        return AuditLogFilterOptionsResponse.builder().connections(connections).apiKeys(apiKeys).build();
+        return AuditLogFilterOptionsResponse.builder().connections(connections).operations(operations).build();
     }
 
     private AuditLogResponse toResponse(AuditLog entry) {
@@ -80,20 +64,13 @@ public class AuditLogQueryService {
 
         return AuditLogResponse.builder()
                 .id(entry.getId())
-                .apiKeyId(apiKey != null ? apiKey.getId() : null)
                 .apiKeyName(apiKey != null ? apiKey.getName() : null)
-                .apiKeyPrefix(apiKey != null ? apiKey.getKeyPrefix() : null)
-                .connectionId(connection != null ? connection.getId() : null)
                 .connectionName(connection != null ? connection.getName() : null)
-                .sourceType(entry.getSourceType() != null ? entry.getSourceType().name() : null)
                 .operation(entry.getOperation())
-                .requestPayload(entry.getRequestPayload())
+                .query(entry.getQuery())
                 .success(entry.getSuccess())
-                .responseSummary(entry.getResponseSummary())
-                .rowsAffected(entry.getRowsAffected())
-                .executionTimeMs(entry.getExecutionTimeMs())
-                .errorCode(entry.getErrorCode())
                 .errorMessage(entry.getErrorMessage())
+                .executionTimeMs(entry.getExecutionTimeMs())
                 .createdAt(entry.getCreatedAt())
                 .build();
     }

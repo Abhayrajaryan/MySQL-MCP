@@ -7,13 +7,14 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/** Powers the Connection and Operation filter dropdowns on the audit log UI. */
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
 public class AuditLogFilterOptionsResponse {
     private List<Option> connections;
-    private List<ApiKeyOption> apiKeys;
+    private List<String> operations;
 
     @Data
     @Builder
@@ -22,15 +23,5 @@ public class AuditLogFilterOptionsResponse {
     public static class Option {
         private Long id;
         private String name;
-    }
-
-    @Data
-    @Builder
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class ApiKeyOption {
-        private Long id;
-        private String name;
-        private Long connectionId;
     }
 }

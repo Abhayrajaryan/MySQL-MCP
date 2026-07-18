@@ -26,20 +26,29 @@ public class ApiKeyAuthService {
     private final SecurityDefaultsProperties securityDefaults;
 
     /**
-     * Validates an API key and checks if it has the required permission.
+     * Resolves the raw API key to its entity. Split out from permission
+     * checking so callers (namely {@code RemoteQueryExecutionService}) can
+     * still identify "who" made a request in the audit trail even when the
+     * request is subsequently denied for lacking a permission.
      *
-     * @param rawApiKey The raw API key to validate
-     * @param requiredPermission The permission required for the operation
-     * @throws IllegalArgumentException if the API key is invalid, disabled, or lacks permission
+     * @throws IllegalArgumentException if no active key matches
      */
-    public void validateApiKeyAndPermission(String rawApiKey, DatabasePermission requiredPermission) {
+    public ApiKey resolveApiKey(String rawApiKey) {
         String keyHash = hashApiKey(rawApiKey);
-
-        ApiKey apiKey = apiKeyRepository.findAll().stream()
+        return apiKeyRepository.findAll().stream()
                 .filter(k -> k.getKeyHash().equals(keyHash))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Invalid API key"));
+    }
 
+    /**
+     * Checks whether an already-resolved API key is allowed to perform the
+     * given operation: active, holds the specific permission, and the
+     * operation's class (write/DDL) isn't disabled server-wide.
+     *
+     * @throws IllegalArgumentException if the key is disabled or lacks permission
+     */
+    public void validatePermission(ApiKey apiKey, DatabasePermission requiredPermission) {
         if (!apiKey.getIsActive()) {
             throw new IllegalArgumentException("API key is disabled");
         }

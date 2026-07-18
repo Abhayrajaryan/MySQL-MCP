@@ -255,7 +255,6 @@
         .result-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
         .result-badge.allowed { background: #e8f5e9; color: #2e7d32; }
         .result-badge.denied { background: #fdecea; color: #c0392b; }
-        .source-tag { padding: 2px 8px; border-radius: 4px; font-size: 10px; background: #eef0ff; color: #5568d3; font-weight: 600; }
         .pagination-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; font-size: 13px; color: #666; }
         .error-text { color: #c0392b; font-size: 12px; }
     </style>
@@ -282,7 +281,7 @@
     <div id="auditTab" class="tab-panel">
         <div class="page-header">
             <h2>Audit Log</h2>
-            <span style="font-size:13px; color:#888;">Who requested what, whether it was allowed, and how long it took</span>
+            <span style="font-size:13px; color:#888;">Who made each request, what they tried to do, and how long it took</span>
         </div>
 
         <div class="summary-cards" id="auditSummaryCards"></div>
@@ -290,44 +289,11 @@
         <div class="filter-bar">
             <div class="filter-field">
                 <label for="auditFilterConnection">Connection</label>
-                <select id="auditFilterConnection" onchange="onAuditConnectionFilterChange()"><option value="">All</option></select>
-            </div>
-            <div class="filter-field">
-                <label for="auditFilterApiKey">API Key</label>
-                <select id="auditFilterApiKey"><option value="">All</option></select>
-            </div>
-            <div class="filter-field">
-                <label for="auditFilterSource">Source</label>
-                <select id="auditFilterSource">
-                    <option value="">All</option>
-                    <option value="MCP">MCP</option>
-                    <option value="REST">REST</option>
-                    <option value="SYSTEM">SYSTEM</option>
-                </select>
-            </div>
-            <div class="filter-field">
-                <label for="auditFilterSuccess">Result</label>
-                <select id="auditFilterSuccess">
-                    <option value="">All</option>
-                    <option value="true">Allowed</option>
-                    <option value="false">Denied / Failed</option>
-                </select>
+                <select id="auditFilterConnection"><option value="">All</option></select>
             </div>
             <div class="filter-field">
                 <label for="auditFilterOperation">Operation</label>
-                <select id="auditFilterOperation">
-                    <option value="">All</option>
-                    <option value="SHOW_TABLES">SHOW_TABLES</option>
-                    <option value="DESCRIBE_TABLE">DESCRIBE_TABLE</option>
-                    <option value="SELECT">SELECT</option>
-                    <option value="EXPLAIN">EXPLAIN</option>
-                    <option value="INSERT">INSERT</option>
-                    <option value="UPDATE">UPDATE</option>
-                    <option value="DELETE">DELETE</option>
-                    <option value="CREATE_TABLE">CREATE_TABLE</option>
-                    <option value="ALTER_TABLE">ALTER_TABLE</option>
-                    <option value="DROP_TABLE">DROP_TABLE</option>
-                </select>
+                <select id="auditFilterOperation"><option value="">All</option></select>
             </div>
             <div class="filter-field">
                 <label for="auditFilterFrom">From</label>
@@ -668,11 +634,13 @@
     }
 
     // ---------------- Audit Log ----------------
+    // Answers exactly three questions per row: who made the request (API key),
+    // what they tried to do (operation + query), and how long it took.
+    // Filterable by Connection, Operation, From and To only.
     let auditInitialized = false;
     let auditPage = 0;
     const auditPageSize = 25;
     let auditHasNext = false;
-    let auditApiKeyOptions = [];
 
     async function initAuditTab() {
         auditInitialized = true;
@@ -687,47 +655,28 @@
             const res = await fetch('/api/audit-logs/filter-options', { headers: { 'Authorization': 'Bearer ' + token } });
             if (res.status === 401) { redirectToLogin(); return; }
             const json = await res.json();
-            const data = json.data || { connections: [], apiKeys: [] };
+            const data = json.data || { connections: [], operations: [] };
 
             const connSelect = document.getElementById('auditFilterConnection');
             connSelect.innerHTML = '<option value="">All</option>' +
                 data.connections.map(c => '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>').join('');
 
-            auditApiKeyOptions = data.apiKeys || [];
-            renderAuditApiKeyOptions();
+            const opSelect = document.getElementById('auditFilterOperation');
+            opSelect.innerHTML = '<option value="">All</option>' +
+                (data.operations || []).map(op => '<option value="' + op + '">' + op + '</option>').join('');
         } catch (e) {
             console.warn('Could not load audit filter options', e);
         }
     }
 
-    function renderAuditApiKeyOptions() {
-        const connectionId = document.getElementById('auditFilterConnection').value;
-        const keySelect = document.getElementById('auditFilterApiKey');
-        const filtered = connectionId
-            ? auditApiKeyOptions.filter(k => String(k.connectionId) === String(connectionId))
-            : auditApiKeyOptions;
-        keySelect.innerHTML = '<option value="">All</option>' +
-            filtered.map(k => '<option value="' + k.id + '">' + escapeHtml(k.name) + '</option>').join('');
-    }
-
-    function onAuditConnectionFilterChange() {
-        renderAuditApiKeyOptions();
-    }
-
     function buildAuditQueryParams() {
         const params = new URLSearchParams();
         const connectionId = document.getElementById('auditFilterConnection').value;
-        const apiKeyId = document.getElementById('auditFilterApiKey').value;
-        const sourceType = document.getElementById('auditFilterSource').value;
-        const success = document.getElementById('auditFilterSuccess').value;
         const operation = document.getElementById('auditFilterOperation').value;
         const from = document.getElementById('auditFilterFrom').value;
         const to = document.getElementById('auditFilterTo').value;
 
         if (connectionId) params.set('connectionId', connectionId);
-        if (apiKeyId) params.set('apiKeyId', apiKeyId);
-        if (sourceType) params.set('sourceType', sourceType);
-        if (success) params.set('success', success);
         if (operation) params.set('operation', operation);
         if (from) params.set('from', from + ':00');
         if (to) params.set('to', to + ':00');
@@ -738,16 +687,11 @@
 
     function applyAuditFilters() {
         auditPage = 0;
-        loadAuditSummary();
         loadAuditLogs();
     }
 
     function resetAuditFilters() {
         document.getElementById('auditFilterConnection').value = '';
-        renderAuditApiKeyOptions();
-        document.getElementById('auditFilterApiKey').value = '';
-        document.getElementById('auditFilterSource').value = '';
-        document.getElementById('auditFilterSuccess').value = '';
         document.getElementById('auditFilterOperation').value = '';
         document.getElementById('auditFilterFrom').value = '';
         document.getElementById('auditFilterTo').value = '';
@@ -773,8 +717,6 @@
             const avg = s.averageExecutionTimeMs != null ? Math.round(s.averageExecutionTimeMs) + ' ms' : '—';
             container.innerHTML =
                 '<div class="summary-card"><div class="stat-label">Total Requests</div><div class="stat-value">' + (s.totalRequests || 0) + '</div></div>' +
-                '<div class="summary-card ok"><div class="stat-label">Allowed</div><div class="stat-value">' + (s.allowedRequests || 0) + '</div></div>' +
-                '<div class="summary-card bad"><div class="stat-label">Denied / Failed</div><div class="stat-value">' + (s.deniedOrFailedRequests || 0) + '</div></div>' +
                 '<div class="summary-card"><div class="stat-label">Avg. Duration</div><div class="stat-value">' + avg + '</div></div>';
         } catch (e) {
             container.innerHTML = '';
@@ -816,31 +758,28 @@
         }
 
         let html = '<table class="audit-table"><thead><tr>' +
-            '<th>Time</th><th>API Key</th><th>Connection</th><th>Source</th><th>Operation</th>' +
-            '<th>Request</th><th>Result</th><th>Details</th><th>Duration</th>' +
+            '<th>Time</th><th>Who (API Key)</th><th>Connection</th><th>Operation</th>' +
+            '<th>Query</th><th>Result</th><th>Duration</th>' +
             '</tr></thead><tbody>';
 
         for (const e of entries) {
             const time = e.createdAt ? new Date(e.createdAt).toLocaleString() : '—';
-            const keyLabel = e.apiKeyName ? escapeHtml(e.apiKeyName) : '<span style="color:#aaa;">Unknown key</span>';
+            const keyLabel = e.apiKeyName ? escapeHtml(e.apiKeyName) : '<span style="color:#aaa;">Unknown/invalid key</span>';
             const connLabel = e.connectionName ? escapeHtml(e.connectionName) : '—';
             const resultBadge = e.success
-                ? '<span class="result-badge allowed">Allowed</span>'
-                : '<span class="result-badge denied">' + escapeHtml(e.errorCode || 'Denied') + '</span>';
-            const details = e.success
-                ? escapeHtml(e.responseSummary || '')
-                : '<span class="error-text">' + escapeHtml(e.errorMessage || '') + '</span>';
-            const requestText = escapeHtml(e.requestPayload || '');
+                ? '<span class="result-badge allowed">Success</span>'
+                : '<span class="result-badge denied">Failed</span>';
+            const queryText = escapeHtml(e.query || '');
+            const errorText = !e.success && e.errorMessage
+                ? '<div class="error-text">' + escapeHtml(e.errorMessage) + '</div>' : '';
 
             html += '<tr>';
             html += '<td>' + time + '</td>';
             html += '<td>' + keyLabel + '</td>';
             html += '<td>' + connLabel + '</td>';
-            html += '<td><span class="source-tag">' + escapeHtml(e.sourceType || '') + '</span></td>';
             html += '<td>' + escapeHtml(e.operation || '') + '</td>';
-            html += '<td><div class="audit-query" title="' + requestText + '">' + requestText + '</div></td>';
+            html += '<td><div class="audit-query" title="' + queryText + '">' + queryText + '</div>' + errorText + '</td>';
             html += '<td>' + resultBadge + '</td>';
-            html += '<td>' + details + '</td>';
             html += '<td>' + (e.executionTimeMs != null ? e.executionTimeMs + ' ms' : '—') + '</td>';
             html += '</tr>';
         }

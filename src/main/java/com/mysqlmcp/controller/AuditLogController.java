@@ -4,7 +4,6 @@ import com.mysqlmcp.dto.response.ApiResponse;
 import com.mysqlmcp.dto.response.AuditLogFilterOptionsResponse;
 import com.mysqlmcp.dto.response.AuditLogResponse;
 import com.mysqlmcp.dto.response.AuditLogSummaryResponse;
-import com.mysqlmcp.enums.AuditSourceType;
 import com.mysqlmcp.service.AuditLogQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -21,10 +20,13 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 
 /**
- * Read-only API for the audit trail: which API key requested what, whether it
- * was allowed, what happened, and how long it took. Protected by the same
- * JWT-based session auth as the rest of {@code /api/**} (see SecurityConfig) —
- * only the dashboard operator can see it, not the MCP API keys themselves.
+ * Read-only API for the audit trail: which API key requested what and how
+ * long it took. Protected by the same JWT-based session auth as the rest of
+ * {@code /api/**} (see SecurityConfig) — only the dashboard operator can see
+ * it, not the MCP API keys themselves.
+ *
+ * <p>Filtering is deliberately limited to Connection, Operation, From and To —
+ * everything else is just displayed per-row, not filterable.
  */
 @RestController
 @RequiredArgsConstructor
@@ -37,10 +39,7 @@ public class AuditLogController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<AuditLogResponse>>> search(
-            @RequestParam(required = false) Long apiKeyId,
             @RequestParam(required = false) Long connectionId,
-            @RequestParam(required = false) AuditSourceType sourceType,
-            @RequestParam(required = false) Boolean success,
             @RequestParam(required = false) String operation,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
@@ -48,8 +47,7 @@ public class AuditLogController {
             @RequestParam(defaultValue = "25") int size) {
 
         Pageable pageable = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by(Sort.Direction.DESC, "id"));
-        Page<AuditLogResponse> result = auditLogQueryService.search(
-                apiKeyId, connectionId, sourceType, success, operation, from, to, pageable);
+        Page<AuditLogResponse> result = auditLogQueryService.search(connectionId, operation, from, to, pageable);
 
         return ResponseEntity.ok(ApiResponse.success(result));
     }

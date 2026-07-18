@@ -6,6 +6,31 @@
 
 A self-hosted MySQL MCP (Model Context Protocol) server that allows AI assistants such as Claude Desktop, Cursor, and other MCP-compatible clients to securely access MySQL databases without exposing database credentials directly.
 
+> [!WARNING]
+>
+> **MySQL MCP Server** is currently in **v0.1.0 Beta**.
+>
+> This project was built as a **personal learning project** to explore the Model Context Protocol (MCP), backend system design, and secure database access using Java and Spring Boot.
+>
+> While it includes features such as API key authentication, permission management, audit logging, and query limits, it **has not undergone a professional security review** and **is not intended to be a production-ready solution**.
+>
+> **Please do not expose this service directly to the public Internet or use it with critical production databases.**
+>
+> If you choose to use this project, you do so **entirely at your own risk**. The author is **not responsible** for any data loss, downtime, security issues, or other damages resulting from its use.
+
+## 🚧 Current Limitations
+
+This project is still evolving. Some important limitations include:
+
+- SQL queries are **not AST-validated**.
+- Permissions are currently **operation-based** rather than table or column based.
+- The project has **not been security audited**.
+- It has **not been tested for high-scale production workloads**.
+
+Please evaluate the project carefully before using it in environments where data integrity or availability is critical.
+
+---
+
 ## Quick Start
 
 ### Prerequisites
@@ -16,7 +41,7 @@ A self-hosted MySQL MCP (Model Context Protocol) server that allows AI assistant
 
 ### Option 1: Download a Release
 
-Download the latest `mysql-mcp-server-0.0.1-SNAPSHOT.jar` from the [Releases page](https://github.com/Abhayrajaryan/MySQL-MCP/releases).
+Download the latest `mysql-mcp-server-0.1.0.jar` from the [Releases page](https://github.com/Abhayrajaryan/MySQL-MCP/releases).
 
 Create a directory for the server, place the JAR inside, and create an `application.properties` file alongside it:
 
@@ -50,7 +75,7 @@ CREATE DATABASE IF NOT EXISTS mysql_mcp;
 Run the JAR:
 
 ```bash
-java -jar mysql-mcp-server-0.0.1-SNAPSHOT.jar --spring.config.location=./application.properties
+java -jar mysql-mcp-server-0.1.0.jar --spring.config.location=./application.properties
 ```
 
 ### Option 2: Clone and Build from Source
@@ -64,7 +89,7 @@ Edit `src/main/resources/application.properties` with your own configuration, th
 
 ```bash
 mvn clean package -DskipTests
-java -jar target/mysql-mcp-server-0.0.1-SNAPSHOT.jar
+java -jar target/mysql-mcp-server-0.1.0.jar
 ```
 
 Or run directly with Maven:
@@ -78,7 +103,7 @@ mvn spring-boot:run
 Any property can be overridden on the command line:
 
 ```bash
-java -jar target/mysql-mcp-server-0.0.1-SNAPSHOT.jar \
+java -jar target/mysql-mcp-server-0.1.0.jar \
   --server.port=8080 \
   --spring.datasource.password=another_password
 ```
@@ -99,7 +124,7 @@ src/main/java/com/mysqlmcp/
 ├── controller/          # REST controllers
 ├── database/            # JDBC and encryption utilities
 ├── dto/                 # Request/Response DTOs
-├── entity/              # JPA entities (ApiKey, DatabaseConnection, AuditLog, etc.)
+├── entity/              # JPA entities
 ├── enums/               # Permission enums
 ├── exception/           # Exception classes and global handler
 ├── mcp/                 # MCP tool definitions
@@ -260,15 +285,6 @@ GET  /api/audit-logs/filter-options
 GET  /api/config/security-defaults
 ```
 
-## Current Limitations
-
-- No SQL AST validation — queries are executed as-is against the target database
-- Permissions are operation-based — no table-level or row-level security
-- Single admin user for the management dashboard
-- No rate limiting
-- MySQL only (other databases not supported yet)
-- Intended for development, internal tooling, and experimentation. Do not expose directly to the public Internet.
-
 ## Build Commands
 
 ```bash
@@ -283,6 +299,22 @@ mvn spring-boot:run     # Run in development
 2. Create a feature branch
 3. Make changes and test
 4. Open a pull request
+
+## ❤️ Why I Built This
+
+I love learning new technologies and challenging myself by building practical software with Java.
+
+As AI assistants started adopting the **Model Context Protocol (MCP)**, I wanted to understand how they communicate with databases and what it takes to build a secure gateway between an AI client and a MySQL server.
+
+Instead of giving an AI direct database credentials, I wanted a central server that could:
+
+- Manage multiple database connections
+- Authenticate clients using API keys
+- Control what each client is allowed to do
+- Keep an audit trail of every request
+- Apply basic safety limits before executing queries
+
+This project is the result of that exploration. It is open-sourced so others can learn from it, experiment with it, and hopefully contribute ideas for making it better.
 
 ## Acknowledgements
 

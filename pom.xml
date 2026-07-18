@@ -12,7 +12,7 @@
 
     <groupId>com.mysqlmcp</groupId>
     <artifactId>mysql-mcp-server</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>MySQL MCP Server</name>
     <description>Spring Boot application that allows AI assistants to securely interact with MySQL databases through the Model Context Protocol (MCP)</description>
 

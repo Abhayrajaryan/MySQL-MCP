@@ -618,7 +618,6 @@
         }
         localStorage.removeItem('accessToken');
         window.location.href = '/login';
-        loadSecurityDefaults();
     }
 
     // ---------------- Tabs ----------------
@@ -788,7 +787,10 @@
         container.innerHTML = html;
     }
 
-    loadDashboard();
+    // Load security defaults on page load to enable/disable write/DDL permissions
+    loadSecurityDefaults().then(() => {
+        loadDashboard();
+    });
 </script>
 </body>
 </html>

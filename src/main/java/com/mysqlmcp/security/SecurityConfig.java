@@ -27,12 +27,12 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/login", "/dashboard", "/css/**", "/js/**").permitAll()
-                .requestMatchers("/authorize", "/token").permitAll()
-                .requestMatchers("/mcp/**").permitAll()
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/**").authenticated()
-                .anyRequest().authenticated()
+                    .requestMatchers("/", "/login", "/dashboard", "/css/**", "/js/**").permitAll()
+                    .requestMatchers("/authorize", "/token").permitAll()
+                    .requestMatchers("/mcp/**", "/sse").permitAll()
+                    .requestMatchers("/api/auth/**").permitAll()
+                    .requestMatchers("/api/**").authenticated()
+                    .anyRequest().authenticated()
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)

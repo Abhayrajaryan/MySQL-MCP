@@ -32,7 +32,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
 
         // Skip JWT filter for MCP and OAuth endpoints - they use API key authentication
-        if (path.startsWith("/mcp/") || path.equals("/authorize") || path.equals("/token") || path.equals("/mcp")) {
+        if (path.startsWith("/mcp/") || path.equals("/authorize") || path.equals("/token")
+                || path.equals("/mcp") || path.equals("/sse")) {
             filterChain.doFilter(request, response);
             return;
         }

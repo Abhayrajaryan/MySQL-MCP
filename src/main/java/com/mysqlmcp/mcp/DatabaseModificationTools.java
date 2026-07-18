@@ -5,6 +5,7 @@ import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;
 import com.mysqlmcp.service.DatabaseConnectionService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -13,19 +14,12 @@ import java.security.MessageDigest;
 import java.util.Base64;
 
 @Component
+@RequiredArgsConstructor
 public class DatabaseModificationTools {
 
     private final ApiKeyRepository apiKeyRepository;
     private final ApiKeyPermissionRepository permissionRepository;
     private final DatabaseConnectionService dbConnectionService;
-
-    public DatabaseModificationTools(ApiKeyRepository apiKeyRepository,
-                                     ApiKeyPermissionRepository permissionRepository,
-                                     DatabaseConnectionService dbConnectionService) {
-        this.apiKeyRepository = apiKeyRepository;
-        this.permissionRepository = permissionRepository;
-        this.dbConnectionService = dbConnectionService;
-    }
 
     @Tool(description = "Execute an INSERT query. Requires INSERT permission. Returns affected rows count in CSV format.")
     public String executeInsert(

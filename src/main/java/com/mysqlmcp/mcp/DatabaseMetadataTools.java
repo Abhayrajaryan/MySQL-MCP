@@ -5,6 +5,7 @@ import com.mysqlmcp.enums.DatabasePermission;
 import com.mysqlmcp.repository.ApiKeyPermissionRepository;
 import com.mysqlmcp.repository.ApiKeyRepository;
 import com.mysqlmcp.service.DatabaseConnectionService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -15,19 +16,12 @@ import java.util.List;
 import java.util.Map;
 
 @Component
+@RequiredArgsConstructor
 public class DatabaseMetadataTools {
 
     private final ApiKeyRepository apiKeyRepository;
     private final ApiKeyPermissionRepository permissionRepository;
     private final DatabaseConnectionService dbConnectionService;
-
-    public DatabaseMetadataTools(ApiKeyRepository apiKeyRepository,
-                                 ApiKeyPermissionRepository permissionRepository,
-                                 DatabaseConnectionService dbConnectionService) {
-        this.apiKeyRepository = apiKeyRepository;
-        this.permissionRepository = permissionRepository;
-        this.dbConnectionService = dbConnectionService;
-    }
 
     @Tool(description = "Show all tables in the database. Requires SHOW_TABLES permission.")
     public String showTables(
